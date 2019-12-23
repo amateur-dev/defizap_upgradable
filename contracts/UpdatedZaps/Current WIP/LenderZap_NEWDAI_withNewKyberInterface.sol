@@ -28,31 +28,31 @@
 
 pragma solidity ^0.5.0;
 
-
 import "../../../node_modules/@openzeppelin/upgrades/contracts/Initializable.sol";
 import "../../../node_modules/@openzeppelin/contracts-ethereum-package/contracts/math/SafeMath.sol";
 import "../../../node_modules/@openzeppelin/contracts-ethereum-package/contracts/token/ERC20/IERC20.sol";
 
+// interfaces 
+interface Invest2cDAI {
+    function LetsInvest(address _toWhomToIssue, uint _slippage) external payable;
+}
 
-interface IKyberNetworkProxy {
-    function getExpectedRate(IERC20 src, IERC20 dest, uint srcQty) external view returns (uint expectedRate, uint slippageRate);
-    function trade(IERC20 src, uint srcAmount, IERC20 dest, address destAddress, uint maxDestAmount, uint minConversionRate, address walletId) external payable returns (uint);
+interface Invest2Fulcrum {
+    function LetsInvest2Fulcrum(address _towhomtoissue) external payable;
 }
 
 
-
-contract KyberInterace is Initializable {
+// through this contract we are putting a user specified allocation to cDAI and the balance to 2xLongETH
+contract LenderZap_NEWDAI is Initializable {
     using SafeMath for uint;
     
     // state variables
+    
     // - THESE MUST ALWAYS STAY IN THE SAME LAYOUT
     bool private stopped = false;
     address payable public owner;
-    IKyberNetworkProxy public kyberNetworkProxyContract;
-    address private _wallet;
-        
-    // events
-    event TokensReceived(uint, uint);
+    Invest2cDAI public Invest2cDAIAddress;
+    Invest2Fulcrum public Invest2FulcrumAddress;
     
     // circuit breaker modifiers
     modifier stopInEmergency {if (!stopped) _;}
@@ -62,65 +62,63 @@ contract KyberInterace is Initializable {
         _;
     }
 
-    function initialize(address _walletAddress) initializer public {
-        _wallet = _walletAddress;
+
+    
+    function initialize(address _Invest2cDAIAddress) initializer public {
         owner = msg.sender;
-        kyberNetworkProxyContract = IKyberNetworkProxy(0x818E6FECD516Ecc3849DAf6845e3EC868087B755);
+        Invest2cDAIAddress = Invest2cDAI(_Invest2cDAIAddress);
+        Invest2FulcrumAddress = Invest2Fulcrum(0xAB58BBF6B6ca1B064aa59113AeA204F554E8fBAe);
     }
 
-    // for setting the wallet address which has been registered with Kyber
-    function set_wallet (address _new_wallet) public onlyOwner {
-        _wallet = _new_wallet;
+    // this function should be called should we ever want to change the Invest2cDAIAddress
+    function set_Invest2cDAIAddress(Invest2cDAI _Invest2cDAIAddress) onlyOwner public {
+        Invest2cDAIAddress = _Invest2cDAIAddress;
     }
 
-    // for getting the wallet address which has been registered with Kyber
-    function get_wallet() public view onlyOwner returns (address) {
-        return _wallet;
+    // this function should be called should we ever want to change the Invest2FulcrumAddress
+    function set_Invest2FulcrumAddress(Invest2Fulcrum _Invest2FulcrumAddress) onlyOwner public {
+        Invest2FulcrumAddress = _Invest2FulcrumAddress;
     }
-    
-    // this function should be called should we ever want to change the kyberNetworkProxyContract address
-    function set_kyberNetworkProxyContract(IKyberNetworkProxy _kyberNetworkProxyContract) onlyOwner public {
-        kyberNetworkProxyContract = _kyberNetworkProxyContract;
+
+        
+    // this function lets you deposit ETH into this wallet 
+    function LetsInvest(address _towhomtoIssueAddress, uint _cDAIAllocation, uint _slippage) stopInEmergency payable public returns (bool) {
+        require(_cDAIAllocation >= 0 || _cDAIAllocation <= 100, "wrong allocation");
+        uint investAmt2cDAI = SafeMath.div(SafeMath.mul(msg.value,_cDAIAllocation), 100);
+        uint investAmt2cFulcrum = SafeMath.sub(msg.value, investAmt2cDAI);
+        require (SafeMath.sub(msg.value,SafeMath.add(investAmt2cDAI, investAmt2cFulcrum)) == 0, "Cannot split incoming ETH appropriately");
+        Invest2cDAIAddress.LetsInvest.value(investAmt2cDAI)(_towhomtoIssueAddress, _slippage);
+        Invest2FulcrumAddress.LetsInvest2Fulcrum.value(investAmt2cFulcrum)(_towhomtoIssueAddress);
+        return true;
     }
+
     
-     
-    function swapTokentoToken(IERC20 _srcTokenAddressIERC20, IERC20 _dstTokenAddress, uint _slippageValue, address _toWhomToIssue) public payable stopInEmergency returns (uint) {
-        require(_wallet != address(0), "internal error, contact owner");
-        require(_slippageValue < 100 && _slippageValue >= 0, "slippage value absurd");
-        uint minConversionRate;
-        uint slippageRate;
-        (minConversionRate,slippageRate) = kyberNetworkProxyContract.getExpectedRate(_srcTokenAddressIERC20, _dstTokenAddress, msg.value);
-        uint realisedValue = SafeMath.sub(100,_slippageValue);
-        uint destAmount = kyberNetworkProxyContract.trade.value(msg.value)(_srcTokenAddressIERC20, msg.value, _dstTokenAddress, _toWhomToIssue, 2**255, (SafeMath.div(SafeMath.mul(minConversionRate,realisedValue),100)), _wallet);
-        return destAmount;
-    }
-    
-    // fx, in case something goes wrong {hint! learnt from experience}
     function inCaseTokengetsStuck(IERC20 _TokenAddress) onlyOwner public {
         uint qty = _TokenAddress.balanceOf(address(this));
         _TokenAddress.transfer(owner, qty);
     }
     
-    
     // - fallback function let you / anyone send ETH to this wallet without the need to call any function
     function() external payable {
-        revert("not allowed to send ETH to this address");
+        if (msg.sender != owner) {
+            LetsInvest(msg.sender, 90, 5);}
     }
     
-
     // - to Pause the contract
     function toggleContractActive() onlyOwner public {
         stopped = !stopped;
     }
-    
-    // - to withdraw any ETH balance sitting in the contract
+
+     // - to withdraw any ETH balance sitting in the contract
     function withdraw() onlyOwner public{
         owner.transfer(address(this).balance);
     }
     
-    function destruct() onlyOwner public{
+    // - to kill the contract
+    function destruct() public onlyOwner {
         selfdestruct(owner);
     }
+
 
     /**
      * @return true if `msg.sender` is the owner of the contract.
@@ -145,5 +143,4 @@ contract KyberInterace is Initializable {
         owner = newOwner;
     }
 
- 
 }
