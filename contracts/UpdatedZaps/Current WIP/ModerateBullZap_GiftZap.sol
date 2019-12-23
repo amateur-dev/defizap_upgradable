@@ -58,8 +58,28 @@ contract ModerateBullZap is Initializable {
     // circuit breaker modifiers
     modifier stopInEmergency {if (!stopped) _;}
     modifier onlyInEmergency {if (stopped) _;}
+    modifier onlyOwner() {
+        require(isOwner(), "you are not authorised to call this function");
+        _;
+    }
     
-   
+    function initialize(address _a1, address _a2) initializer public {
+        stopped = false;
+        owner = msg.sender;
+        Invest2_sBTCContract = Invest2_sBTC(_a1);
+        Invest2_sETHContract = Invest2_sETH(_a2);
+    }
+
+    // main function which will make the investments
+    function LetsInvest(address payable _toWhomToIssue, uint _sBTCPercentage, uint _slippage) stopInEmergency public payable returns(uint) {
+        require(_sBTCPercentage >= 0 || _sBTCPercentage <= 100, "wrong allocation");
+        uint sBTCPortion = SafeMath.div(SafeMath.mul(msg.value,_sBTCPercentage),100);
+        uint sETHPortion = SafeMath.sub(msg.value, sBTCPortion);
+        require (SafeMath.sub(msg.value, SafeMath.add(sBTCPortion, sETHPortion))==0,"Cannot split incoming ETH appropriately");
+        Invest2_sBTCContract.LetsInvestin_sBTC.value(sBTCPortion)(_toWhomToIssue);
+        Invest2_sETHContract.LetsInvestin_sETH.value(sETHPortion)(_toWhomToIssue);
+    }
+
 
     // this function should be called should we ever want to change the underlying Invest2_sETHContract address
     function set_Invest2_sETHContract (Invest2_sETH _Invest2_sETHContract) onlyOwner public {
@@ -71,61 +91,56 @@ contract ModerateBullZap is Initializable {
         Invest2_sBTCContract = _Invest2_sBTCContract;
     }
     
-    // this function should be called should we ever want to change the sBTC Contract address
-    function set_sBTCContract(ERC20 _sBTCContract) onlyOwner public {
-        sBTCContract = _sBTCContract;
-    }
-    
-    // this function should be called should we ever want to change the sETH Contract address
-    function set_sETHContract(ERC20 _sETHContract) onlyOwner public {
-        sETHContract = _sETHContract;
-    }
-    
-    // main function which will make the investments
-    function LetsInvest(address payable _toWhomToIssue, uint _sBTCPercentage, uint _slippage) stopInEmergency public payable returns(uint) {
-        require(_sBTCPercentage >= 0 || _sBTCPercentage <= 100, "wrong allocation");
-        uint sBTCPortion = SafeMath.div(SafeMath.mul(msg.value,sBTCPercentage),100);
-        uint sETHPortion = SafeMath.sub(msg.value, sBTCPortion);
-        require (SafeMath.sub(msg.value, SafeMath.add(sBTCPortion, sETHPortion))==0,"Cannot split incoming ETH appropriately");
-        Invest2_sBTCContract.LetsInvestin_sBTC.value(sBTCPortion)(_toWhomToIssue);
-        Invest2_sETHContract.LetsInvestin_sETH.value(sETHPortion)(_toWhomToIssue);
-    }
-    
-    // fallback protective function in case of failure
-    function checkAndWithdraw_sBTC() onlyOwner public {
-        uint sBTCUnits = sBTCContract.balanceOf(address(this));
-        sBTCContract.transfer(owner,sBTCUnits);
-    }
-    
-    function checkAndWithdraw_sETH() onlyOwner public {
-        uint sETHUnits = sETHContract.balanceOf(address(this));
-        sETHContract.transfer(owner,sETHUnits);
-    }
-    
-    
-    // fx in relation to ETH held by the contract sent by the owner
-    
-    // - this function lets you deposit ETH into this wallet
-    function depositETH() payable public onlyOwner returns (uint) {
-        balance += msg.value;
+
+    function inCaseTokengetsStuck(IERC20 _TokenAddress) onlyOwner public {
+        uint qty = _TokenAddress.balanceOf(address(this));
+        _TokenAddress.transfer(owner, qty);
     }
     
     // - fallback function let you / anyone send ETH to this wallet without the need to call any function
     function() external payable {
-        if (msg.sender == owner) {
-            depositETH();
-        } else {
-            LetsInvest(msg.sender);
-        }
+        if (msg.sender != owner) {
+            LetsInvest(msg.sender, 50, 5);}
     }
     
+    // - to Pause the contract
+    function toggleContractActive() onlyOwner public {
+        stopped = !stopped;
+    }
+
     // - to withdraw any ETH balance sitting in the contract
     function withdraw() onlyOwner public{
         owner.transfer(address(this).balance);
     }
-
-    function _destruct() public onlyOwner {
+    
+    // - to kill the contract
+    function destruct() public onlyOwner {
         selfdestruct(owner);
     }
+
+
+    /**
+     * @return true if `msg.sender` is the owner of the contract.
+     */
+    function isOwner() public view returns (bool) {
+        return msg.sender == owner;
+    }
+
+    /**
+     * @dev Transfers ownership of the contract to a new account (`newOwner`).
+     * Can only be called by the current owner.
+     */
+    function transferOwnership(address payable newOwner) public onlyOwner {
+        _transferOwnership(newOwner);
+    }
+
+    /**
+     * @dev Transfers ownership of the contract to a new account (`newOwner`).
+     */
+    function _transferOwnership(address payable newOwner) internal {
+        require(newOwner != address(0), "Ownable: new owner is the zero address");
+        owner = newOwner;
+    }
+
     
 }
