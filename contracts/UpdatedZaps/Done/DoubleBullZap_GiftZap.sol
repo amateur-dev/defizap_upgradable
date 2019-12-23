@@ -37,8 +37,7 @@ interface Invest2Fulcrum2xLongBTC {
     function LetsInvest2Fulcrum2xLongBTC(address _towhomtoissue) external payable;
 }
 
-// this is the underlying contract that invests in 2xLongETH on Fulcrum
-interface Invest2Fulcrum2xLongETH {
+interface Invest2Fulcrum {
     function LetsInvest2Fulcrum(address _towhomtoissue) external payable;
 }
 
@@ -53,7 +52,7 @@ contract DoubleBullZap is Initializable {
     // - THESE MUST ALWAYS STAY IN THE SAME LAYOUT
     bool private stopped;
     address payable public owner;
-    Invest2Fulcrum2xLongETH public Invest2Fulcrum2xLong_ETHContract;
+    Invest2Fulcrum public Invest2FulcrumAddress;
     Invest2Fulcrum2xLongBTC public Invest2Fulcrum2xLong_BTCContract;
 
     // circuit breaker modifiers
@@ -65,15 +64,15 @@ contract DoubleBullZap is Initializable {
     }
     
     function initialize() initializer public {
-        stopped = false;
+        stopped = false; 
         owner = msg.sender;
-        Invest2Fulcrum2xLong_ETHContract = Invest2Fulcrum2xLongETH(0xAB58BBF6B6ca1B064aa59113AeA204F554E8fBAe);
+        Invest2FulcrumAddress = Invest2Fulcrum(0xAB58BBF6B6ca1B064aa59113AeA204F554E8fBAe);
         Invest2Fulcrum2xLong_BTCContract = Invest2Fulcrum2xLongBTC(0xd455e7368BcaB144C2944aD679E4Aa10bB3766c1);
     }
 
     // this function should be called should we ever want to change the underlying Fulcrum Long ETHContract address
-    function set_Invest2Fulcrum2xLong_ETHContract (Invest2Fulcrum2xLongETH _Invest2Fulcrum2xLong_ETHContract) onlyOwner public {
-        Invest2Fulcrum2xLong_ETHContract = _Invest2Fulcrum2xLong_ETHContract;
+    function set_Invest2FulcrumAddress (Invest2Fulcrum _new_Invest2FulcrumAddress) onlyOwner public {
+        Invest2FulcrumAddress = _new_Invest2FulcrumAddress;
     }
     
     // this function should be called should we ever want to change the underlying Fulcrum Long ETHContract address
@@ -88,7 +87,7 @@ contract DoubleBullZap is Initializable {
         uint ETH2xLongPortion = SafeMath.sub(msg.value, BTC2xLongPortion);
         require (SafeMath.sub(msg.value, SafeMath.add(BTC2xLongPortion, ETH2xLongPortion))==0, "Cannot split incoming ETH appropriately");
         Invest2Fulcrum2xLong_BTCContract.LetsInvest2Fulcrum2xLongBTC.value(BTC2xLongPortion)(_towhomtoIssueAddress);
-        Invest2Fulcrum2xLong_ETHContract.LetsInvest2Fulcrum.value(ETH2xLongPortion)(_towhomtoIssueAddress);
+        Invest2FulcrumAddress.LetsInvest2Fulcrum.value(ETH2xLongPortion)(_towhomtoIssueAddress);
     }
     
     function inCaseTokengetsStuck(IERC20 _TokenAddress) onlyOwner public {
