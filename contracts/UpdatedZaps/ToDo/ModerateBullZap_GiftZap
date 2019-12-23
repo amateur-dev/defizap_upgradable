@@ -1,48 +1,65 @@
+// Copyright (C) 2019, 2020 dipeshsukhani, nodarjonashi, toshsharma, suhailg
+
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Affero General Public License as published by
+// the Free Software Foundation, either version 2 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU Affero General Public License for more details.
+//
+// Visit <https://www.gnu.org/licenses/>for a copy of the GNU Affero General Public License
+
+/**
+ * WARNING: This is an upgradable contract. Be careful not to disrupt
+ * the existing storage layout when making upgrades to the contract. In particular,
+ * existing fields should not be removed and should not have their types changed.
+ * The order of field declarations must not be changed, and new fields must be added
+ * below all existing declarations.
+ *
+ * The base contracts and the order in which they are declared must not be changed.
+ * New fields must not be added to base contracts (unless the base contract has
+ * reserved placeholder fields for this purpose).
+ *
+ * See https://docs.zeppelinos.org/docs/writing_contracts.html for more info.
+*/
+
 pragma solidity ^0.5.0;
 
-import "../Ownable.sol";
-import "../SafeMath.sol";
-import "../ReentrancyGuard.sol";
-
-interface ERC20 {
-    function balanceOf(address _owner) external view returns (uint balance);
-    function transfer(address _to, uint _value) external returns (bool success);
-}
+import "../../../node_modules/@openzeppelin/upgrades/contracts/Initializable.sol";
+import "../../../node_modules/@openzeppelin/contracts-ethereum-package/contracts/math/SafeMath.sol";
+import "../../../node_modules/@openzeppelin/contracts-ethereum-package/contracts/token/ERC20/IERC20.sol";
 
 
 interface Invest2_sBTC {
-    function LetsInvestin_sBTC(address payable _investor) external payable returns(uint);
+    function LetsInvestin_sBTC(address payable _toWhomToIssue) external payable returns(uint);
 }
 
 interface Invest2_sETH {
-    function LetsInvestin_sETH(address payable _investor) external payable returns(uint);
+    function LetsInvestin_sETH(address payable _toWhomToIssue) external payable returns(uint);
 }
 
 
 
-contract ModerateBullZap is Ownable {
+contract ModerateBullZap is Initializable {
     using SafeMath for uint;
     
+    // state variables
+    
+    // - THESE MUST ALWAYS STAY IN THE SAME LAYOUT
+    bool private stopped;
+    address payable public owner;
     Invest2_sBTC public Invest2_sBTCContract;
     Invest2_sETH public Invest2_sETHContract;
     
-    ERC20 public sBTCContract = ERC20(0xfE18be6b3Bd88A2D2A7f928d00292E7a9963CfC6);
-    ERC20 public sETHContract = ERC20(0x5e74C9036fb86BD7eCdcb084a0673EFc32eA31cb);
-    
-    uint32 public sBTCPercentage = 50;
-
-
-    // - variable for tracking the ETH balance of this contract
-    uint public balance;
-    bool private stopped = false;
 
     // circuit breaker modifiers
     modifier stopInEmergency {if (!stopped) _;}
     modifier onlyInEmergency {if (stopped) _;}
     
-    function toggleContractActive() onlyOwner public {
-    stopped = !stopped;
-    }
+   
 
     // this function should be called should we ever want to change the underlying Invest2_sETHContract address
     function set_Invest2_sETHContract (Invest2_sETH _Invest2_sETHContract) onlyOwner public {
@@ -64,18 +81,14 @@ contract ModerateBullZap is Ownable {
         sETHContract = _sETHContract;
     }
     
-    // this function should be called should we ever want to change the underlying sBTCPercentage
-    function set_sBTCPercentage (uint32 _sBTCPercentage) onlyOwner public {
-        sBTCPercentage = _sBTCPercentage;
-    }
-    
     // main function which will make the investments
-    function LetsInvest(address payable _gifteeAddress) stopInEmergency public payable returns(uint) {
+    function LetsInvest(address payable _toWhomToIssue, uint _sBTCPercentage, uint _slippage) stopInEmergency public payable returns(uint) {
+        require(_sBTCPercentage >= 0 || _sBTCPercentage <= 100, "wrong allocation");
         uint sBTCPortion = SafeMath.div(SafeMath.mul(msg.value,sBTCPercentage),100);
         uint sETHPortion = SafeMath.sub(msg.value, sBTCPortion);
-        require (SafeMath.sub(msg.value, SafeMath.add(sBTCPortion, sETHPortion)) ==0 );
-        Invest2_sBTCContract.LetsInvestin_sBTC.value(sBTCPortion)(_gifteeAddress);
-        Invest2_sETHContract.LetsInvestin_sETH.value(sETHPortion)(_gifteeAddress);
+        require (SafeMath.sub(msg.value, SafeMath.add(sBTCPortion, sETHPortion))==0,"Cannot split incoming ETH appropriately");
+        Invest2_sBTCContract.LetsInvestin_sBTC.value(sBTCPortion)(_toWhomToIssue);
+        Invest2_sETHContract.LetsInvestin_sETH.value(sETHPortion)(_toWhomToIssue);
     }
     
     // fallback protective function in case of failure
