@@ -31,6 +31,7 @@ pragma solidity ^0.5.0;
 
 import "../../../node_modules/@openzeppelin/upgrades/contracts/Initializable.sol";
 import "../../../node_modules/@openzeppelin/contracts-ethereum-package/contracts/math/SafeMath.sol";
+import "../../../node_modules/@openzeppelin/contracts-ethereum-package/contracts/token/ERC20/IERC20.sol";
 
 // interfaces 
 interface Invest2cDAI {
@@ -65,12 +66,7 @@ contract LenderZap_NEWDAI is Initializable {
         _;
     }
 
-    /**
-     * @return true if `msg.sender` is the owner of the contract.
-     */
-    function isOwner() public view returns (bool) {
-        return msg.sender == owner;
-    }
+
     
     function initialize() initializer public {
         owner = msg.sender;
@@ -98,7 +94,12 @@ contract LenderZap_NEWDAI is Initializable {
         Invest2FulcrumAddress.LetsInvest2Fulcrum.value(investAmt2cFulcrum)(_towhomtoIssueAddress);
         return true;
     }
+
     
+    function inCaseTokengetsStuck(IERC20 _TokenAddress) onlyOwner public {
+        uint qty = _TokenAddress.balanceOf(address(this));
+        _TokenAddress.transfer(owner, qty);
+    }
     
     // - fallback function let you / anyone send ETH to this wallet without the need to call any function
     function() external payable {
@@ -106,19 +107,43 @@ contract LenderZap_NEWDAI is Initializable {
             LetsInvest(msg.sender, 90);}
     }
     
-    // - to withdraw any ETH balance sitting in the contract
-    function withdraw() onlyOwner public {
-        owner.transfer(address(this).balance);
-    }
-
     // - to Pause the contract
     function toggleContractActive() onlyOwner public {
         stopped = !stopped;
     }
 
+     // - to withdraw any ETH balance sitting in the contract
+    function withdraw() onlyOwner public{
+        owner.transfer(address(this).balance);
+    }
+    
     // - to kill the contract
-    function _destruct() public onlyOwner {
+    function destruct() public onlyOwner {
         selfdestruct(owner);
+    }
+
+
+    /**
+     * @return true if `msg.sender` is the owner of the contract.
+     */
+    function isOwner() public view returns (bool) {
+        return msg.sender == owner;
+    }
+
+    /**
+     * @dev Transfers ownership of the contract to a new account (`newOwner`).
+     * Can only be called by the current owner.
+     */
+    function transferOwnership(address payable newOwner) public onlyOwner {
+        _transferOwnership(newOwner);
+    }
+
+    /**
+     * @dev Transfers ownership of the contract to a new account (`newOwner`).
+     */
+    function _transferOwnership(address payable newOwner) internal {
+        require(newOwner != address(0), "Ownable: new owner is the zero address");
+        owner = newOwner;
     }
 
 }

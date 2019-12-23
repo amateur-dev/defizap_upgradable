@@ -106,6 +106,11 @@ contract KyberInterace is Initializable {
         revert("not allowed to send ETH to this address");
     }
     
+
+     // - to Pause the contract
+    function toggleContractActive() onlyOwner public {
+        stopped = !stopped;
+    }
     
     // - to withdraw any ETH balance sitting in the contract
     function withdraw() onlyOwner public{
