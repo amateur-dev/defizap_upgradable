@@ -33,34 +33,27 @@ import "../../../node_modules/@openzeppelin/contracts-ethereum-package/contracts
 import "../../../node_modules/@openzeppelin/contracts-ethereum-package/contracts/token/ERC20/IERC20.sol";
 
 
-interface IKyberInterface {
-    function swapTokentoToken(IERC20 _srcTokenAddressIERC20, IERC20 _dstTokenAddress, uint _slippageValue, address _toWhomToIssue) external payable returns (uint);
+interface Invest2Fulcrum1xShortBTC {
+    function LetsInvest2Fulcrum1xShortBTC(address _towhomtoissue) external payable;
+}
+
+interface Invest2Fulcrum {
+    function LetsInvest2Fulcrum(address _towhomtoissue) external payable;
 }
 
 
-interface Compound {
-    function approve (address spender, uint256 amount ) external returns ( bool );
-    function mint ( uint256 mintAmount ) external returns ( uint256 );
-    function balanceOf(address _owner) external view returns (uint256 balance);
-    function transfer(address _to, uint _value) external returns (bool success);
-}
-
-
-contract Invest2cDAI_NEW is Initializable {
+contract ETHMaximalist is Initializable {
     using SafeMath for uint;
     
     // state variables
     
     // - THESE MUST ALWAYS STAY IN THE SAME LAYOUT
-    bool private stopped = false;
+    bool private stopped;
     address payable public owner;
-    IKyberInterface public KyberInterfaceAddress;
-    IERC20 public NEWDAI_TOKEN_ADDRESS;
-    Compound public COMPOUND_TOKEN_ADDRESS;
-    
-    // events
-    event UnitsReceivedANDSentToAddress(uint, address);
+    Invest2Fulcrum public Invest2FulcrumAddress;
+    Invest2Fulcrum1xShortBTC public Invest2Fulcrum1xShortBTCContract;
 
+    
     // circuit breaker modifiers
     modifier stopInEmergency {if (!stopped) _;}
     modifier onlyInEmergency {if (stopped) _;}
@@ -69,68 +62,58 @@ contract Invest2cDAI_NEW is Initializable {
         _;
     }
 
-    function initialize(address _KyberInterfaceAddress) initializer public {
+    function initialize() initializer public {
+        stopped = false;
         owner = msg.sender;
-        KyberInterfaceAddress = IKyberInterface(_KyberInterfaceAddress);
-        NEWDAI_TOKEN_ADDRESS = IERC20(0x6B175474E89094C44Da98b954EedeAC495271d0F);
-        COMPOUND_TOKEN_ADDRESS = Compound(0x5d3a536E4D6DbD6114cc1Ead35777bAB948E3643);
+        Invest2FulcrumAddress = Invest2Fulcrum(0xAB58BBF6B6ca1B064aa59113AeA204F554E8fBAe);
+        Invest2Fulcrum1xShortBTCContract = Invest2Fulcrum1xShortBTC(0xa2C3e380E6c082A003819a2a69086748fe3D15Dd);
     }
 
-    // this function should be called should we ever want to change the KyberInterfaceAddress address
-    function set_KyberInterfaceAddress(address _new__KyberInterfaceAddress) public onlyOwner {
-        KyberInterfaceAddress = IKyberInterface(_new__KyberInterfaceAddress);
-    }
-
-    // this function should be called should we ever want to change the NEWDAI_TOKEN_ADDRESS
-    function set_NEWDAI_TOKEN_ADDRESS(IERC20 _NEWDAI_TOKEN_ADDRESS) onlyOwner public {
-        NEWDAI_TOKEN_ADDRESS = _NEWDAI_TOKEN_ADDRESS;
-    }
-    // this function should be called should we ever want to change the COMPOUND_TOKEN_ADDRESS 
-    function set_COMPOUND_TOKEN_ADDRESS(Compound _COMPOUND_TOKEN_ADDRESS) onlyOwner public {
-        COMPOUND_TOKEN_ADDRESS = _COMPOUND_TOKEN_ADDRESS;
+    // this function should be called should we ever want to change the Invest2FulcrumAddress
+    function set_Invest2FulcrumAddress(Invest2Fulcrum _Invest2FulcrumAddress) onlyOwner public {
+        Invest2FulcrumAddress = _Invest2FulcrumAddress;
     }
     
-    
-    // 
-    function LetsInvest(address _toWhomToIssue, uint _slippage) public stopInEmergency payable {
-        KyberInterfaceAddress.swapTokentoToken.value(msg.value)(IERC20(0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE),IERC20(NEWDAI_TOKEN_ADDRESS),_slippage,address(this));
-        uint TokensReceived = NEWDAI_TOKEN_ADDRESS.balanceOf(address(this));
-        require(NEWDAI_TOKEN_ADDRESS.approve(address(COMPOUND_TOKEN_ADDRESS), TokensReceived), "Some issue in approving in DAI contrat");
-        COMPOUND_TOKEN_ADDRESS.mint(TokensReceived); 
-        uint cDAI2transfer = COMPOUND_TOKEN_ADDRESS.balanceOf(address(this));
-        require(COMPOUND_TOKEN_ADDRESS.transfer(_toWhomToIssue, cDAI2transfer), "Some issue in transferring cDAI");
-        require(NEWDAI_TOKEN_ADDRESS.approve(address(COMPOUND_TOKEN_ADDRESS), 0), "Resettig approval value to 0");
-        emit UnitsReceivedANDSentToAddress(TokensReceived, _toWhomToIssue);
+    // this function should be called should we ever want to change the Invest2Fulcrum1xShortBTCContract address
+    function set_Invest2Fulcrum1xShortBTCContract (Invest2Fulcrum1xShortBTC _Invest2Fulcrum1xShortBTCContract) onlyOwner public {
+        Invest2Fulcrum1xShortBTCContract = _Invest2Fulcrum1xShortBTCContract;
     }
+    
 
-    // fx, in case something goes wrong
+    
+    // this function lets you deposit ETH into this wallet 
+    function LetsInvest(address _towhomtoIssueAddress, uint _ShortBTCAllocation, uint _slippage) stopInEmergency payable public returns (bool) {
+        require(_ShortBTCAllocation >= 0 || _ShortBTCAllocation <= 100, "wrong allocation");
+        uint investAmt2ShortBTC = SafeMath.div(SafeMath.mul(msg.value,_ShortBTCAllocation), 100);
+        uint investAmt2c2xLongETH = SafeMath.sub(msg.value, investAmt2ShortBTC);
+        require (SafeMath.sub(msg.value,SafeMath.add(investAmt2ShortBTC, investAmt2c2xLongETH))==0, "Cannot split incoming ETH appropriately");
+        Invest2Fulcrum1xShortBTCContract.LetsInvest2Fulcrum1xShortBTC.value(investAmt2ShortBTC)(_towhomtoIssueAddress);
+        Invest2FulcrumAddress.LetsInvest2Fulcrum.value(investAmt2c2xLongETH)(_towhomtoIssueAddress);
+        
+    }
     function inCaseTokengetsStuck(IERC20 _TokenAddress) onlyOwner public {
         uint qty = _TokenAddress.balanceOf(address(this));
         _TokenAddress.transfer(owner, qty);
     }
-    
+
     // - fallback function let you / anyone send ETH to this wallet without the need to call any function
     function() external payable {
         if (msg.sender != owner) {
-            LetsInvest(msg.sender, 5);}
+            LetsInvest(msg.sender, 50, 5);}
     }
-
-// - to Pause the contract
+    
+    // - to Pause the contract
     function toggleContractActive() onlyOwner public {
         stopped = !stopped;
     }
-
-     // - to withdraw any ETH balance sitting in the contract
+    // - to withdraw any ETH balance sitting in the contract
     function withdraw() onlyOwner public{
         owner.transfer(address(this).balance);
     }
-    
     // - to kill the contract
     function destruct() public onlyOwner {
         selfdestruct(owner);
     }
-
-
     /**
      * @return true if `msg.sender` is the owner of the contract.
      */
@@ -152,6 +135,6 @@ contract Invest2cDAI_NEW is Initializable {
     function _transferOwnership(address payable newOwner) internal {
         require(newOwner != address(0), "Ownable: new owner is the zero address");
         owner = newOwner;
-    }
- 
+    }   
+
 }
