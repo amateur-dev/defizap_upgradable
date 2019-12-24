@@ -1,3 +1,4 @@
+
 // Copyright (C) 2019, 2020 dipeshsukhani, nodarjonashi, toshsharma, suhailg
 
 // This program is free software: you can redistribute it and/or modify
@@ -135,6 +136,6 @@ contract ETHMaximalist is Initializable {
     function _transferOwnership(address payable newOwner) internal {
         require(newOwner != address(0), "Ownable: new owner is the zero address");
         owner = newOwner;
-    }   
+    } 
 
 }

@@ -206,6 +206,6 @@ contract UniSwap_ETH_CDAIZap is Initializable {
     function _transferOwnership(address payable newOwner) internal {
         require(newOwner != address(0), "Ownable: new owner is the zero address");
         owner = newOwner;
-    }   
+    }
     
 }

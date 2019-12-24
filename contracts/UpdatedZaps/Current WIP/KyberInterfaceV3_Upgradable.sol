@@ -28,33 +28,32 @@
 
 pragma solidity ^0.5.0;
 
+
 import "../../../node_modules/@openzeppelin/upgrades/contracts/Initializable.sol";
 import "../../../node_modules/@openzeppelin/contracts-ethereum-package/contracts/math/SafeMath.sol";
 import "../../../node_modules/@openzeppelin/contracts-ethereum-package/contracts/token/ERC20/IERC20.sol";
 
 
-interface Invest2Fulcrum2xLongBTC {
-    function LetsInvest2Fulcrum2xLongBTC(address _towhomtoissue) external payable;
-}
-
-interface Invest2Fulcrum {
-    function LetsInvest2Fulcrum(address _towhomtoissue) external payable;
+interface IKyberNetworkProxy {
+    function getExpectedRate(IERC20 src, IERC20 dest, uint srcQty) external view returns (uint expectedRate, uint slippageRate);
+    function trade(IERC20 src, uint srcAmount, IERC20 dest, address destAddress, uint maxDestAmount, uint minConversionRate, address walletId) external payable returns (uint);
 }
 
 
 
-contract DoubleBullZap is Initializable {
+contract KyberInterace is Initializable {
     using SafeMath for uint;
+    
     // state variables
-    
-     // state variables
-    
     // - THESE MUST ALWAYS STAY IN THE SAME LAYOUT
-    bool private stopped;
+    bool private stopped = false;
     address payable public owner;
-    Invest2Fulcrum public Invest2FulcrumAddress;
-    Invest2Fulcrum2xLongBTC public Invest2Fulcrum2xLong_BTCContract;
-
+    IKyberNetworkProxy public kyberNetworkProxyContract;
+    address private _wallet;
+        
+    // events
+    event TokensReceived(uint, uint);
+    
     // circuit breaker modifiers
     modifier stopInEmergency {if (!stopped) _;}
     modifier onlyInEmergency {if (stopped) _;}
@@ -62,57 +61,67 @@ contract DoubleBullZap is Initializable {
         require(isOwner(), "you are not authorised to call this function");
         _;
     }
-    
-    function initialize() initializer public {
-        stopped = false; 
+
+    function initialize(address _walletAddress) initializer public {
+        _wallet = _walletAddress;
         owner = msg.sender;
-        Invest2FulcrumAddress = Invest2Fulcrum(0xAB58BBF6B6ca1B064aa59113AeA204F554E8fBAe);
-        Invest2Fulcrum2xLong_BTCContract = Invest2Fulcrum2xLongBTC(0xd455e7368BcaB144C2944aD679E4Aa10bB3766c1);
+        kyberNetworkProxyContract = IKyberNetworkProxy(0x818E6FECD516Ecc3849DAf6845e3EC868087B755);
     }
 
-    // this function should be called should we ever want to change the underlying Fulcrum Long ETHContract address
-    function set_Invest2FulcrumAddress (Invest2Fulcrum _new_Invest2FulcrumAddress) onlyOwner public {
-        Invest2FulcrumAddress = _new_Invest2FulcrumAddress;
+    // for setting the wallet address which has been registered with Kyber
+    function set_wallet (address _new_wallet) public onlyOwner {
+        _wallet = _new_wallet;
+    }
+
+    // for getting the wallet address which has been registered with Kyber
+    function get_wallet() public view onlyOwner returns (address) {
+        return _wallet;
     }
     
-    // this function should be called should we ever want to change the underlying Fulcrum Long ETHContract address
-    function set_Invest2Fulcrum2xLong_BTCContract (Invest2Fulcrum2xLongBTC _Invest2Fulcrum2xLong_BTCContract) onlyOwner public {
-        Invest2Fulcrum2xLong_BTCContract = _Invest2Fulcrum2xLong_BTCContract;
+    // this function should be called should we ever want to change the kyberNetworkProxyContract address
+    function set_kyberNetworkProxyContract(IKyberNetworkProxy _kyberNetworkProxyContract) onlyOwner public {
+        kyberNetworkProxyContract = _kyberNetworkProxyContract;
     }
     
-    // main function which will make the investments
-    function LetsInvest(address _towhomtoIssueAddress, uint _BTC2xLongAllocation, uint _slippage) stopInEmergency public payable {
-        require(_BTC2xLongAllocation >= 0 || _BTC2xLongAllocation <= 100, "wrong allocation");
-        uint BTC2xLongPortion = SafeMath.div(SafeMath.mul(msg.value,_BTC2xLongAllocation),100);
-        uint ETH2xLongPortion = SafeMath.sub(msg.value, BTC2xLongPortion);
-        require (SafeMath.sub(msg.value, SafeMath.add(BTC2xLongPortion, ETH2xLongPortion))==0, "Cannot split incoming ETH appropriately");
-        Invest2Fulcrum2xLong_BTCContract.LetsInvest2Fulcrum2xLongBTC.value(BTC2xLongPortion)(_towhomtoIssueAddress);
-        Invest2FulcrumAddress.LetsInvest2Fulcrum.value(ETH2xLongPortion)(_towhomtoIssueAddress);
+     
+    function swapTokentoToken(IERC20 _srcTokenAddressIERC20, IERC20 _dstTokenAddress, uint _slippageValue, address _toWhomToIssue) public payable stopInEmergency returns (uint) {
+        require(_wallet != address(0), "internal error, contact owner");
+        require(_slippageValue < 100 && _slippageValue >= 0, "slippage value absurd");
+        uint minConversionRate;
+        uint slippageRate;
+        (minConversionRate,slippageRate) = kyberNetworkProxyContract.getExpectedRate(_srcTokenAddressIERC20, _dstTokenAddress, msg.value);
+        uint realisedValue = SafeMath.sub(100,_slippageValue);
+        uint destAmount = kyberNetworkProxyContract.trade.value(msg.value)(_srcTokenAddressIERC20, msg.value, _dstTokenAddress, _toWhomToIssue, 2**255, (SafeMath.div(SafeMath.mul(minConversionRate,realisedValue),100)), _wallet);
+        return destAmount;
     }
     
+    // fx, in case something goes wrong {hint! learnt from experience}
     function inCaseTokengetsStuck(IERC20 _TokenAddress) onlyOwner public {
         uint qty = _TokenAddress.balanceOf(address(this));
         _TokenAddress.transfer(owner, qty);
     }
-
+    
+    
     // - fallback function let you / anyone send ETH to this wallet without the need to call any function
     function() external payable {
-        if (msg.sender != owner) {
-            LetsInvest(msg.sender, 50, 5);}
+        revert("not allowed to send ETH to this address");
     }
+    
 
     // - to Pause the contract
     function toggleContractActive() onlyOwner public {
         stopped = !stopped;
     }
+    
     // - to withdraw any ETH balance sitting in the contract
     function withdraw() onlyOwner public{
         owner.transfer(address(this).balance);
     }
-    // - to kill the contract
-    function destruct() public onlyOwner {
+    
+    function destruct() onlyOwner public{
         selfdestruct(owner);
     }
+
     /**
      * @return true if `msg.sender` is the owner of the contract.
      */
@@ -134,5 +143,10 @@ contract DoubleBullZap is Initializable {
     function _transferOwnership(address payable newOwner) internal {
         require(newOwner != address(0), "Ownable: new owner is the zero address");
         owner = newOwner;
-    }   
+    }
+    
+    // function _check() pure public returns(uint) {
+    //     return 44;
+    // }
+ 
 }
