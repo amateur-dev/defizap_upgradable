@@ -33,28 +33,28 @@ import "../../../node_modules/@openzeppelin/contracts-ethereum-package/contracts
 import "../../../node_modules/@openzeppelin/contracts-ethereum-package/contracts/token/ERC20/IERC20.sol";
 
 
-interface Invest2Fulcrum2xLongBTC {
-    function LetsInvest2Fulcrum2xLongBTC(address _towhomtoissue) external payable;
-}
 
 // this is the underlying contract that invests in 2xLongETH on Fulcrum
-interface Invest2Fulcrum2xLongETH {
+interface Invest2Fulcrum {
     function LetsInvest2Fulcrum(address _towhomtoissue) external payable;
 }
 
+interface UniSwapAddLiquityV2_General {
+    function LetsInvest(address _TokenContractAddress, address _towhomtoissue) external payable returns (uint);
+}
 
-// through this contract we are putting 50% allocation to 2xLongETH and 50% to 2xLongBTC
-contract DoubleBullZap is Initializable {
+
+// through this contract we are putting 33% allocation to 2xLongETH and 67% to Uniswap pool
+contract PoolBullZap is Initializable {
     using SafeMath for uint;
+    
     // state variables
-    
-     // state variables
-    
+
     // - THESE MUST ALWAYS STAY IN THE SAME LAYOUT
-    bool private stopped;
+    bool private stopped = false;
     address payable public owner;
-    Invest2Fulcrum2xLongETH public Invest2Fulcrum2xLong_ETHContract;
-    Invest2Fulcrum2xLongBTC public Invest2Fulcrum2xLong_BTCContract;
+    Invest2Fulcrum public Invest2FulcrumAddress;
+    UniSwapAddLiquityV2_General public UniSwapAddLiquityV2_GeneralAddress;
 
     // circuit breaker modifiers
     modifier stopInEmergency {
@@ -63,62 +63,71 @@ contract DoubleBullZap is Initializable {
         else {
             _;}
         }
-    modifier onlyInEmergency {if (stopped) _;}
     modifier onlyOwner() {
         require(isOwner(), "you are not authorised to call this function");
         _;
     }
     
-    function initialize() initializer public {
-        stopped = false;
+    function initialize
+    (address _Invest2FulcrumAddress, 
+    address _UniSwapAddLiquityV2_GeneralAddress) 
+    initializer public {
         owner = msg.sender;
-        Invest2Fulcrum2xLong_ETHContract = Invest2Fulcrum2xLongETH(0xAB58BBF6B6ca1B064aa59113AeA204F554E8fBAe);
-        Invest2Fulcrum2xLong_BTCContract = Invest2Fulcrum2xLongBTC(0xd455e7368BcaB144C2944aD679E4Aa10bB3766c1);
+        Invest2FulcrumAddress = Invest2Fulcrum(_Invest2FulcrumAddress);
+        UniSwapAddLiquityV2_GeneralAddress = UniSwapAddLiquityV2_General(_UniSwapAddLiquityV2_GeneralAddress);
     }
 
-    // this function should be called should we ever want to change the underlying Fulcrum Long ETHContract address
-    function set_Invest2Fulcrum2xLong_ETHContract (Invest2Fulcrum2xLongETH _Invest2Fulcrum2xLong_ETHContract) onlyOwner public {
-        Invest2Fulcrum2xLong_ETHContract = _Invest2Fulcrum2xLong_ETHContract;
+    // this function should be called should we ever want to change the Invest2FulcrumAddress
+    function set_Invest2FulcrumAddress(Invest2Fulcrum _Invest2FulcrumAddress) onlyOwner public {
+        Invest2FulcrumAddress = _Invest2FulcrumAddress;
     }
     
-    // this function should be called should we ever want to change the underlying Fulcrum Long ETHContract address
-    function set_Invest2Fulcrum2xLong_BTCContract (Invest2Fulcrum2xLongBTC _Invest2Fulcrum2xLong_BTCContract) onlyOwner public {
-        Invest2Fulcrum2xLong_BTCContract = _Invest2Fulcrum2xLong_BTCContract;
+    // this function should be called should we ever want to change the underlying Kyber Interface Contract address
+    function set_UniSwapAddLiquityV2_GeneralAddress(address _new_UniSwapAddLiquityV2_GeneralAddress) public onlyOwner {
+        UniSwapAddLiquityV2_GeneralAddress = UniSwapAddLiquityV2_General (_new_UniSwapAddLiquityV2_GeneralAddress);
     }
     
     // main function which will make the investments
-    function LetsInvest(address _towhomtoIssueAddress, uint _BTC2xLongAllocation, uint _slippage) stopInEmergency public payable {
-        require(_BTC2xLongAllocation >= 0 || _BTC2xLongAllocation <= 100, "wrong allocation");
-        uint BTC2xLongPortion = SafeMath.div(SafeMath.mul(msg.value,_BTC2xLongAllocation),100);
-        uint ETH2xLongPortion = SafeMath.sub(msg.value, BTC2xLongPortion);
-        require (SafeMath.sub(msg.value, SafeMath.add(BTC2xLongPortion, ETH2xLongPortion))==0, "Cannot split incoming ETH appropriately");
-        Invest2Fulcrum2xLong_BTCContract.LetsInvest2Fulcrum2xLongBTC.value(BTC2xLongPortion)(_towhomtoIssueAddress);
-        Invest2Fulcrum2xLong_ETHContract.LetsInvest2Fulcrum.value(ETH2xLongPortion)(_towhomtoIssueAddress);
+    function LetsInvest(address payable _towhomtoIssueAddress, uint _2XLongETHAllocation, address _InvesteeTokenAddress, uint _slippage, bool _residualInToken) public payable returns(uint) {
+        require(_2XLongETHAllocation >= 0 || _2XLongETHAllocation <= 100, "wrong allocation");
+        //Determine ETH 2x Long and Uniswap portions
+        uint ETH2xLongPortion = SafeMath.div(SafeMath.mul(msg.value,_2XLongETHAllocation),100);
+        uint UniswapPortion = SafeMath.sub(msg.value, ETH2xLongPortion);
+        require (SafeMath.sub(msg.value, SafeMath.add(UniswapPortion, ETH2xLongPortion)) == 0, "Cannot split incoming ETH appropriately");
+        // Invest Uniswap portion
+        UniSwapAddLiquityV2_GeneralAddress.LetsInvest.value(UniswapPortion)(_InvesteeTokenAddress, _towhomtoIssueAddress);
+        // Invest ETH 2x Long portion
+        Invest2FulcrumAddress.LetsInvest2Fulcrum.value(ETH2xLongPortion)(_towhomtoIssueAddress);
     }
-    
+
     function inCaseTokengetsStuck(IERC20 _TokenAddress) onlyOwner public {
         uint qty = _TokenAddress.balanceOf(address(this));
         _TokenAddress.transfer(owner, qty);
     }
 
+
     // - fallback function let you / anyone send ETH to this wallet without the need to call any function
     function() external payable {
         if (msg.sender != owner) {
-            LetsInvest(msg.sender, 50, 5);}
+            LetsInvest(msg.sender, 33, 0x6B175474E89094C44Da98b954EedeAC495271d0F, 5, false);}
     }
-
+    
     // - to Pause the contract
     function toggleContractActive() onlyOwner public {
         stopped = !stopped;
     }
+
     // - to withdraw any ETH balance sitting in the contract
     function withdraw() onlyOwner public{
         owner.transfer(address(this).balance);
     }
+    
     // - to kill the contract
     function destruct() public onlyOwner {
         selfdestruct(owner);
     }
+
+
     /**
      * @return true if `msg.sender` is the owner of the contract.
      */
@@ -140,5 +149,6 @@ contract DoubleBullZap is Initializable {
     function _transferOwnership(address payable newOwner) internal {
         require(newOwner != address(0), "Ownable: new owner is the zero address");
         owner = newOwner;
-    }   
+    }
+
 }
