@@ -169,22 +169,28 @@ contract UniSwapAddLiquityV2_General is Initializable {
         // Max tokens that will provided by Kyber
         (KyberValue, expKyberValuePostSlippage) = KyberNetworkProxyAddress.getExpectedRate(_src, _TokenContractAddress, _value);
         // eg 1 ETH = (500 KNC, 490 KNC)
-        expKyberValue = SafeMath.div(SafeMath.mul(KyberValue, _realisedvalue), 100);
-        emit numberT(expKyberValue);
+        emit numberT(_value);
+        emit numberT(_realisedvalue);
+        emit numberT(KyberValue);
+        emit numberT(expKyberValuePostSlippage);
+        uint KyberValueAfterUserSlippage = SafeMath.div(SafeMath.mul(KyberValue, _realisedvalue), 100);
+        emit numberT(KyberValueAfterUserSlippage);
         // eg User says 1%, so User wants 1 ETH = 495 KNC
 
-        // if (KyberValueAfterUserSlippage < expKyberValuePostSlippage) 
-        // // eg (495 < 490)
-        // {
-        //     expKyberValue = expKyberValuePostSlippage;
-        //     // skip
-        // } else {
-        //     expKyberValue = KyberValueAfterUserSlippage;
-        //     // eg expKyberValue = 495
-        // }
+        if (KyberValueAfterUserSlippage > expKyberValuePostSlippage) 
+        // eg (495 > 490)
+        {
+            expKyberValue = KyberValueAfterUserSlippage;
+            // 495
+        } else {
+            expKyberValue = expKyberValuePostSlippage;
+            // eg skip
+        }
+        emit numberT(expKyberValue);
 
         // Max Tokens that will be provided by UniSwap after considering the user provided slippage
         UniSwapValue = SafeMath.div(SafeMath.mul(UniSwapExchangeContractAddress.getEthToTokenInputPrice(_value),_realisedvalue),100);
+        
         emit numberT(UniSwapValue);
 
         if (expKyberValue > UniSwapValue) {
