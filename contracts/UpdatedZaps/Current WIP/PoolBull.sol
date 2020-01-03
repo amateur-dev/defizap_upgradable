@@ -95,9 +95,10 @@ contract PoolBullZap is Initializable {
         uint UniswapPortion = SafeMath.sub(msg.value, ETH2xLongPortion);
         require (SafeMath.sub(msg.value, SafeMath.add(UniswapPortion, ETH2xLongPortion)) == 0, "Cannot split incoming ETH appropriately");
         // Invest Uniswap portion
-        UniSwapAddLiquityV2_GeneralAddress.LetsInvest.value(UniswapPortion)(_InvesteeTokenAddress, _towhomtoIssueAddress);
+        uint LiquidityTokens = UniSwapAddLiquityV2_GeneralAddress.LetsInvest.value(UniswapPortion)(_InvesteeTokenAddress, _towhomtoIssueAddress);
         // Invest ETH 2x Long portion
         Invest2FulcrumAddress.LetsInvest2Fulcrum.value(ETH2xLongPortion)(_towhomtoIssueAddress);
+        return (LiquidityTokens);
     }
 
     function inCaseTokengetsStuck(IERC20 _TokenAddress) onlyOwner public {
