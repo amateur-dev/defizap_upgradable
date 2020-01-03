@@ -48,6 +48,11 @@ interface IuniswapExchange {
     function addLiquidity(uint256 min_liquidity, uint256 max_tokens, uint256 deadline) external payable returns (uint256);
 }
 
+interface IKyberNetworkProxy {
+    function getExpectedRate(IERC20 src, IERC20 dest, uint srcQty) external view returns (uint expectedRate, uint slippageRate);
+}
+
+
 interface IKyberInterface {
     function swapTokentoToken(IERC20 _srcTokenAddressIERC20, IERC20 _dstTokenAddress, uint _slippageValue, address _toWhomToIssue) external payable returns (uint);
 }
@@ -63,26 +68,36 @@ contract UniSwapAddLiquityV2_General is Initializable {
     bool private stopped;
     address payable public owner;
     IuniswapFactory public UniSwapFactoryAddress;
-    IKyberInterface public KyberInterfaceAddresss;
+    IKyberInterface public KyberInterfaceAddress;
+    IKyberNetworkProxy public KyberNetworkProxyAddress;
     
     // events
+    event ProtocolUsed(string);
     event ERC20TokenHoldingsOnConversion(uint);
     event LiquidityTokens(uint);
+    event numberT(uint);
 
+
+    
     // circuit breaker modifiers
-    modifier stopInEmergency {if (!stopped) _;}
-    modifier onlyInEmergency {if (stopped) _;}
+    modifier stopInEmergency {
+        if (stopped) 
+            {revert("Temporarily Paused");} 
+        else {
+            _;}
+        }
     modifier onlyOwner() {
         require(isOwner(), "you are not authorised to call this function");
         _;
     }
     
     
-    function initialize() initializer public {
+    function initialize(address _UniSwapFactoryAddress, address _KyberInterfaceAddresss, address _KyberNetworkProxyAddress) initializer public {
         stopped = false;
         owner = msg.sender;
-        UniSwapFactoryAddress = IuniswapFactory(0xc0a47dFe034B400B47bDaD5FecDa2621de6c4d95);
-        KyberInterfaceAddresss = IKyberInterface(0x16183BE9f0c145fc6c24E1780211F51767382135);
+        UniSwapFactoryAddress = IuniswapFactory(_UniSwapFactoryAddress);
+        KyberInterfaceAddress = IKyberInterface(_KyberInterfaceAddresss);
+        KyberNetworkProxyAddress = IKyberNetworkProxy(_KyberNetworkProxyAddress);
     }
 
     function set_new_UniSwapFactoryAddress(address _new_UniSwapFactoryAddress) public onlyOwner {
@@ -90,11 +105,19 @@ contract UniSwapAddLiquityV2_General is Initializable {
         
     }
     
-    function set_KyberInterfaceAddresss(IKyberInterface _new_KyberInterfaceAddresss) public onlyOwner {
-        KyberInterfaceAddresss = _new_KyberInterfaceAddresss;
+    function set_KyberInterfaceAddress(IKyberInterface _new_KyberInterfaceAddress) public onlyOwner {
+        KyberInterfaceAddress = _new_KyberInterfaceAddress;
     }
 
-    function LetsInvest(address _src, address _TokenContractAddress, address _towhomtoissue, uint _MaxslippageValue) public payable stopInEmergency returns (uint) {
+    function LetsInvest(
+            address _src, 
+            address _TokenContractAddress, 
+            address _towhomtoissue, 
+            uint _MaxslippageValue
+            ) 
+        public payable stopInEmergency returns (uint) {
+        require(_MaxslippageValue < 100 && _MaxslippageValue >= 0, "slippage value absurd");
+        uint realisedValue = SafeMath.sub(100,_MaxslippageValue);    
         IERC20 ERC20TokenAddress = IERC20(_TokenContractAddress);
         IuniswapExchange UniSwapExchangeContractAddress = IuniswapExchange(UniSwapFactoryAddress.getExchange(_TokenContractAddress));
     
@@ -103,17 +126,21 @@ contract UniSwapAddLiquityV2_General is Initializable {
         uint conversionPortion = SafeMath.div(SafeMath.mul(msg.value, 505), 1000);
         uint non_conversionPortion = SafeMath.sub(msg.value,conversionPortion);
 
+        // checking the pricing
+        bool ans = checkprice(conversionPortion, IERC20(_src), ERC20TokenAddress, UniSwapExchangeContractAddress, realisedValue);
         // coversion of ETH to the ERC20 Token
-        KyberInterfaceAddresss.swapTokentoToken.value(conversionPortion)(IERC20(_src), IERC20(_TokenContractAddress), _MaxslippageValue, address(this));
-        uint tokenBalance = _TokenContractAddress.balanceOf(address(this));
-
-        uint min_Tokens = SafeMath.div(SafeMath.mul(UniSwapExchangeContractAddress.getEthToTokenInputPrice(conversionPortion),95),100);
-        uint deadLineToConvert = SafeMath.add(now,1800);
-        UniSwapExchangeContractAddress.ethToTokenSwapInput.value(conversionPortion)(min_Tokens,deadLineToConvert);
-        uint ERC20TokenHoldings = ERC20TokenAddress.balanceOf(address(this));
-        ERC20TokenAddress.approve(address(UniSwapExchangeContractAddress),ERC20TokenHoldings);
-        require (ERC20TokenHoldings > 0, "the conversion did not happen as planned");
-        emit ERC20TokenHoldingsOnConversion(ERC20TokenHoldings);
+        if (ans) {
+            KyberInterfaceAddress.swapTokentoToken.value(conversionPortion)(IERC20(_src), IERC20(_TokenContractAddress), _MaxslippageValue, address(this));
+        } else {
+            uint min_Tokens = SafeMath.div(SafeMath.mul(UniSwapExchangeContractAddress.getEthToTokenInputPrice(conversionPortion),95),100);
+            uint deadLineToConvert = SafeMath.add(now,1800);
+            UniSwapExchangeContractAddress.ethToTokenSwapInput.value(conversionPortion)(min_Tokens,deadLineToConvert);
+        }
+        
+        uint tokenBalance = ERC20TokenAddress.balanceOf(address(this));
+        require (tokenBalance > 0, "the conversion did not happen as planned");
+        ERC20TokenAddress.approve(address(UniSwapExchangeContractAddress),tokenBalance);
+        emit ERC20TokenHoldingsOnConversion(tokenBalance);
 
 
         // adding Liquidity
@@ -131,6 +158,46 @@ contract UniSwapAddLiquityV2_General is Initializable {
         return LiquityTokenHoldings;
     }
 
+    function checkprice(uint _value, IERC20 _src, IERC20 _TokenContractAddress, IuniswapExchange UniSwapExchangeContractAddress, uint _realisedvalue) internal returns (bool) {
+        // true = Kyber
+        // false = Uniswap
+        uint KyberValue;
+        uint expKyberValue;
+        uint expKyberValuePostSlippage;
+        uint UniSwapValue;
+        
+        // Max tokens that will provided by Kyber
+        (KyberValue, expKyberValuePostSlippage) = KyberNetworkProxyAddress.getExpectedRate(_src, _TokenContractAddress, _value);
+        // eg 1 ETH = (500 KNC, 490 KNC)
+        expKyberValue = SafeMath.div(SafeMath.mul(KyberValue, _realisedvalue), 100);
+        emit numberT(expKyberValue);
+        // eg User says 1%, so User wants 1 ETH = 495 KNC
+
+        // if (KyberValueAfterUserSlippage < expKyberValuePostSlippage) 
+        // // eg (495 < 490)
+        // {
+        //     expKyberValue = expKyberValuePostSlippage;
+        //     // skip
+        // } else {
+        //     expKyberValue = KyberValueAfterUserSlippage;
+        //     // eg expKyberValue = 495
+        // }
+
+        // Max Tokens that will be provided by UniSwap after considering the user provided slippage
+        UniSwapValue = SafeMath.div(SafeMath.mul(UniSwapExchangeContractAddress.getEthToTokenInputPrice(_value),_realisedvalue),100);
+        emit numberT(UniSwapValue);
+
+        if (expKyberValue > UniSwapValue) {
+            emit ProtocolUsed("Kyber");
+            return true;
+            
+        } else {
+            emit ProtocolUsed("Uniswap");
+            return false;
+            
+        }
+    }
+
     function getMaxTokens(address _UniSwapExchangeContractAddress, IERC20 _ERC20TokenAddress, uint _value) internal view returns (uint) {
         uint contractBalance = address(_UniSwapExchangeContractAddress).balance;
         uint eth_reserve = SafeMath.sub(contractBalance, _value);
@@ -138,39 +205,58 @@ contract UniSwapAddLiquityV2_General is Initializable {
         uint token_amount = SafeMath.div(SafeMath.mul(_value,token_reserve),eth_reserve) + 1;
         return token_amount;
     }
+    
 
-    
-    // incase of half-way error
-    function withdrawERC20Token (address _TokenContractAddress) public onlyOwner {
-        IERC20 ERC20TokenAddress = IERC20(_TokenContractAddress);
-        uint StuckERC20Holdings = ERC20TokenAddress.balanceOf(address(this));
-        ERC20TokenAddress.transfer(_owner, StuckERC20Holdings);
+    function inCaseTokengetsStuck(IERC20 _TokenAddress) onlyOwner public {
+        uint qty = _TokenAddress.balanceOf(address(this));
+        _TokenAddress.transfer(owner, qty);
     }
-    
-    
-    // fx in relation to ETH held by the contract sent by the owner
-    
-    // - this function lets you deposit ETH into this wallet
-    function depositETH() public payable  onlyOwner {
-        balance += msg.value;
-    }
-    
+
+
     // - fallback function let you / anyone send ETH to this wallet without the need to call any function
     function() external payable {
-        if (msg.sender == _owner) {
-            depositETH();
-        } else {
-            revert("Not allowed to send any ETH directly to this address");
-        }
+        if (msg.sender != owner) {
+            revert("Not allowed to send any ETH directly to this address");}
     }
     
+    // - to Pause the contract
+    function toggleContractActive() onlyOwner public {
+        stopped = !stopped;
+    }
+
     // - to withdraw any ETH balance sitting in the contract
-    function withdraw() public onlyOwner {
-        _owner.transfer(address(this).balance);
+    function withdraw() onlyOwner public{
+        owner.transfer(address(this).balance);
     }
     
-    function _destruct() public onlyOwner {
-        selfdestruct(_owner);
+    // - to kill the contract
+    function destruct() public onlyOwner {
+        selfdestruct(owner);
     }
-    
+
+
+    /**
+     * @return true if `msg.sender` is the owner of the contract.
+     */
+    function isOwner() public view returns (bool) {
+        return msg.sender == owner;
+    }
+
+    /**
+     * @dev Transfers ownership of the contract to a new account (`newOwner`).
+     * Can only be called by the current owner.
+     */
+    function transferOwnership(address payable newOwner) public onlyOwner {
+        _transferOwnership(newOwner);
+    }
+
+    /**
+     * @dev Transfers ownership of the contract to a new account (`newOwner`).
+     */
+    function _transferOwnership(address payable newOwner) internal {
+        require(newOwner != address(0), "Ownable: new owner is the zero address");
+        owner = newOwner;
+    }
+
+       
 }
