@@ -51,7 +51,7 @@ contract PoolBullZap is Initializable {
     // state variables
 
     // - THESE MUST ALWAYS STAY IN THE SAME LAYOUT
-    bool private stopped = false;
+    bool private stopped;
     address payable public owner;
     Invest2Fulcrum public Invest2FulcrumAddress;
     UniSwapAddLiquityV2_General public UniSwapAddLiquityV2_GeneralAddress;
@@ -72,6 +72,7 @@ contract PoolBullZap is Initializable {
     (address _Invest2FulcrumAddress, 
     address _UniSwapAddLiquityV2_GeneralAddress) 
     initializer public {
+        stopped = false;
         owner = msg.sender;
         Invest2FulcrumAddress = Invest2Fulcrum(_Invest2FulcrumAddress);
         UniSwapAddLiquityV2_GeneralAddress = UniSwapAddLiquityV2_General(_UniSwapAddLiquityV2_GeneralAddress);
