@@ -44,7 +44,7 @@ interface UniSwapAddLiquityV2_General {
 }
 
 
-// through this contract we are putting 33% allocation to 2xLongETH and 67% to Uniswap pool
+// through this contract we are putting 34% allocation to 2xLongETH and 66% to Uniswap pool
 contract PoolBullZap is Initializable {
     using SafeMath for uint;
     
@@ -111,7 +111,7 @@ contract PoolBullZap is Initializable {
     // - fallback function let you / anyone send ETH to this wallet without the need to call any function
     function() external payable {
         if (msg.sender != owner) {
-            LetsInvest(msg.sender, 33, 0x6B175474E89094C44Da98b954EedeAC495271d0F, 5, false);}
+            LetsInvest(msg.sender, 34, 0x6B175474E89094C44Da98b954EedeAC495271d0F, 5, false);}
     }
     
     // - to Pause the contract
