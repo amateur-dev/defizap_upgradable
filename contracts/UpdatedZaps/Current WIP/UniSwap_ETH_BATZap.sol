@@ -28,17 +28,15 @@
 
 pragma solidity ^0.5.0;
 
-import "@openzeppelin/upgrades/contracts/Initializable.sol";
-import "@openzeppelin/contracts-ethereum-package/contracts/math/SafeMath.sol";
-import "@openzeppelin/contracts-ethereum-package/contracts/token/ERC20/IERC20.sol";
+import "../../../node_modules/@openzeppelin/upgrades/contracts/Initializable.sol";
+import "../../../node_modules/@openzeppelin/contracts-ethereum-package/contracts/math/SafeMath.sol";
+import "../../../node_modules/@openzeppelin/contracts-ethereum-package/contracts/token/ERC20/IERC20.sol";
 
 
 interface UniSwapAddLiquityV2_General {
     function LetsInvest(address _TokenContractAddress, address _towhomtoissue) external payable returns (uint);
 }
 
-
-// through this contract we are putting 34% allocation to 2xLongETH and 66% to Uniswap pool
 contract UniSwap_ETH_BATZap is Initializable {
     using SafeMath for uint;
     
