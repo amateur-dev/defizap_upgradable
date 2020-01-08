@@ -45,7 +45,7 @@ interface UniSwapAddLiquityV2_General {
 
 
 // through this contract we are putting 34% allocation to 2xLongETH and 66% to Uniswap pool
-contract PoolBullZap is Initializable {
+contract LLP_ETH_ANT_Zap is Initializable {
     using SafeMath for uint;
     
     // state variables
