@@ -85,7 +85,7 @@ contract Invest2Fulcrum is Initializable, ReentrancyGuard {
     }
     
     //  - the investment fx
-    function LetsInvest2Fulcrum(address _FuclrumOnwardAddress, address _destTokenAddress, uint _slippage, address _towhomtoissue) payable public returns (uint) {
+    function LetsInvest(address _FuclrumOnwardAddress, address _destTokenAddress, uint _slippage, address _towhomtoissue) payable public returns (uint) {
         uint _destTokens = KyberInterfaceAddress.swapTokentoToken.value(msg.value)(IERC20(0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE),IERC20(_destTokenAddress),_slippage,address(this));
         IERC20(_destTokenAddress).approve(_FuclrumOnwardAddress, _destTokens);
         fulcrumInterface FA = fulcrumInterface(_FuclrumOnwardAddress);
