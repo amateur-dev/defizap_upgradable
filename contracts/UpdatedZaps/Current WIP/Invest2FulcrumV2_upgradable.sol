@@ -28,26 +28,38 @@
 
 pragma solidity ^0.5.0;
 
-import "@openzeppelin/upgrades/contracts/Initializable.sol";
-import "@openzeppelin/contracts-ethereum-package/contracts/math/SafeMath.sol";
-import "@openzeppelin/contracts-ethereum-package/contracts/token/ERC20/IERC20.sol";
+import "../../../node_modules/@openzeppelin/upgrades/contracts/Initializable.sol";
+import "../../../node_modules/@openzeppelin/contracts-ethereum-package/contracts/math/SafeMath.sol";
+import "../../../node_modules/@openzeppelin/contracts-ethereum-package/contracts/token/ERC20/IERC20.sol";
+import "../../../node_modules/@openzeppelin/contracts-ethereum-package/contracts/utils/ReentrancyGuard.sol";
+
+///@author DeFiZap
+///@notice this contract implements one click execution of an leveraged trade on Fulcrum
 
 
-interface UniSwapAddLiquityV2_General {
-    function LetsInvest(address _TokenContractAddress, address _towhomtoissue) external payable returns (uint);
+interface IKyberInterface {
+    function swapTokentoToken(IERC20 _srcTokenAddressIERC20, IERC20 _dstTokenAddress, uint _slippageValue, address _toWhomToIssue) external payable returns (uint);
 }
 
-contract Uniswap_ETH_ANTZap is Initializable {
-    using SafeMath for uint;
-    
-    // state variables
+contract IfulcrumInterface {
+   function mintWithToken(address receiver, address depositTokenAddress, uint256 depositAmount, uint256 maxPriceAllowed) external returns (uint256);
+}
 
+
+contract Invest2FulcrumV2_upgrabable is Initializable, ReentrancyGuard {
+    using SafeMath for uint;
+
+    // state variables
+    
     // - THESE MUST ALWAYS STAY IN THE SAME LAYOUT
     bool private stopped;
     address payable public owner;
-    UniSwapAddLiquityV2_General public UniSwapAddLiquityV2_GeneralAddress;
-    address public ANT_TOKEN_ADDRESS;
+    IKyberInterface public KyberInterfaceAddress;
+    uint public maxPrice;
 
+    // events
+    event FulcrumTokensMinted(uint);
+    
     // circuit breaker modifiers
     modifier stopInEmergency {
         if (stopped) 
@@ -60,56 +72,55 @@ contract Uniswap_ETH_ANTZap is Initializable {
         _;
     }
     
-    function initialize (address _ANT_TOKEN_ADDRESS, address _UniSwapAddLiquityV2_GeneralAddress) initializer public {
+    function initialize(IKyberInterface _KyberInterfaceAddress) initializer public {
+        ReentrancyGuard.initialize();
         stopped = false;
         owner = msg.sender;
-        UniSwapAddLiquityV2_GeneralAddress = UniSwapAddLiquityV2_General(_UniSwapAddLiquityV2_GeneralAddress);
-        ANT_TOKEN_ADDRESS = _ANT_TOKEN_ADDRESS;
-    }
-
-    // this function should be called should we ever want to change the underlying Kyber Interface Contract address
-    function set_UniSwapAddLiquityV2_GeneralAddress(address _new_UniSwapAddLiquityV2_GeneralAddress) public onlyOwner {
-        UniSwapAddLiquityV2_GeneralAddress = UniSwapAddLiquityV2_General (_new_UniSwapAddLiquityV2_GeneralAddress);
+        KyberInterfaceAddress = _KyberInterfaceAddress;
+        maxPrice = 0;
     }
     
-    // this function should be called should we ever want to change the ANT token address
-    function set_new_ANT_TOKEN_ADDRESS(address _new_ANT_TOKEN_ADDRESS) public onlyOwner {
-        ANT_TOKEN_ADDRESS = _new_ANT_TOKEN_ADDRESS;
+    // - this is to control the slippage
+    function set_maxPrice(uint _insertValueinWEI) onlyOwner public {
+        maxPrice = _insertValueinWEI;
     }
     
-    // main function which will make the investments
-    function LetsInvest(address payable _towhomtoIssueAddress, uint _slippage, bool _residualInToken) public payable returns(uint) {
-        uint LiquidityTokens = UniSwapAddLiquityV2_GeneralAddress.LetsInvest.value(msg.value)(ANT_TOKEN_ADDRESS, _towhomtoIssueAddress);
-        return (LiquidityTokens);
+    //  - the investment fx
+    function LetsInvest(address _FuclrumOnwardAddress, address _destTokenAddress, uint _slippage, address _towhomtoissue) payable public returns (uint) {
+        uint _destTokens = KyberInterfaceAddress.swapTokentoToken.value(msg.value)(IERC20(0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE),IERC20(_destTokenAddress),_slippage,address(this));
+        IERC20(_destTokenAddress).approve(_FuclrumOnwardAddress, _destTokens);
+        IfulcrumInterface FA = IfulcrumInterface(_FuclrumOnwardAddress);
+        uint FulcrumTokens = FA.mintWithToken(_towhomtoissue, _destTokenAddress, _destTokens, maxPrice);
+        emit FulcrumTokensMinted(FulcrumTokens);
+        return FulcrumTokens;
     }
-
+    
+    // fx, in case something goes wrong
     function inCaseTokengetsStuck(IERC20 _TokenAddress) onlyOwner public {
         uint qty = _TokenAddress.balanceOf(address(this));
         _TokenAddress.transfer(owner, qty);
     }
-
-
-    // - fallback function let you / anyone send ETH to this wallet without the need to call any function
+    
+    
+    // - fallback function
     function() external payable {
-        if (msg.sender != owner) {
-            LetsInvest(msg.sender, 5, false);}
+        revert("not allowed to send ETH to this address");
     }
     
+
     // - to Pause the contract
     function toggleContractActive() onlyOwner public {
         stopped = !stopped;
     }
-
+    
     // - to withdraw any ETH balance sitting in the contract
     function withdraw() onlyOwner public{
         owner.transfer(address(this).balance);
     }
     
-    // - to kill the contract
-    function destruct() public onlyOwner {
+    function destruct() onlyOwner public{
         selfdestruct(owner);
     }
-
 
     /**
      * @return true if `msg.sender` is the owner of the contract.
@@ -133,5 +144,5 @@ contract Uniswap_ETH_ANTZap is Initializable {
         require(newOwner != address(0), "Ownable: new owner is the zero address");
         owner = newOwner;
     }
-
+ 
 }
