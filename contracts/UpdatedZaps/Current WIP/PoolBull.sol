@@ -98,7 +98,7 @@ contract PoolBullZap is Initializable {
         // Invest Uniswap portion
         uint LiquidityTokens = UniSwapAddLiquityV2_GeneralAddress.LetsInvest.value(UniswapPortion)(_InvesteeTokenAddress, _towhomtoIssueAddress);
         // Invest ETH 2x Long portion
-        Invest2FulcrumAddress.LetsInvest.value(ETH2xLongPortion)(0xd80e558027Ee753a0b95757dC3521d0326F13DA2, 0x6B175474E89094C44Da98b954EedeAC495271d0F, _slippage,  _towhomtoIssueAddress);
+        Invest2FulcrumAddress.LetsInvest.value(ETH2xLongPortion)(0xd80e558027Ee753a0b95757dC3521d0326F13DA2, 0x6B175474E89094C44Da98b954EedeAC495271d0F, 5,  _towhomtoIssueAddress);
         return (LiquidityTokens);
     }
 
