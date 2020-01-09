@@ -20,6 +20,7 @@ module.exports = {
     mainnet: {
       provider: () => new HDWalletProvider(process.env.PrivateKey, "https://mainnet.infura.io/v3/" + infuraProjectId),
       networkId: 1,       // mainnet's id
+      // gasPrice: web3.toWei("10", "gwei"),
     },
     rinkeby: {
       provider: () => new HDWalletProvider(process.env.PrivateKey, "https://rinkeby.infura.io/v3/" + infuraProjectId),
