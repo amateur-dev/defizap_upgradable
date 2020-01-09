@@ -28,9 +28,9 @@
 
 pragma solidity ^0.5.0;
 
-import "@openzeppelin/upgrades/contracts/Initializable.sol";
-import "@openzeppelin/contracts-ethereum-package/contracts/math/SafeMath.sol";
-import "@openzeppelin/contracts-ethereum-package/contracts/token/ERC20/IERC20.sol";
+import "../../../node_modules/@openzeppelin/upgrades/contracts/Initializable.sol";
+import "../../../node_modules/@openzeppelin/contracts-ethereum-package/contracts/math/SafeMath.sol";
+import "../../../node_modules/@openzeppelin/contracts-ethereum-package/contracts/token/ERC20/IERC20.sol";
 
 
 interface UniSwapAddLiquityV2_General {
@@ -62,7 +62,7 @@ contract UniSwap_ETH_LinkZap is Initializable {
         _;
     }
     
-    function initialize (address _LINK_TOKEN_ADDRESS, address _UniSwapAddLiquityV2_GeneralAddress) initializer public {
+    function initialize (address _UniSwapAddLiquityV2_GeneralAddress, address _LINK_TOKEN_ADDRESS) initializer public {
         stopped = false;
         owner = msg.sender;
         UniSwapAddLiquityV2_GeneralAddress = UniSwapAddLiquityV2_General(_UniSwapAddLiquityV2_GeneralAddress);
