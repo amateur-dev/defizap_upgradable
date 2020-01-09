@@ -32,12 +32,20 @@ import "../../../node_modules/@openzeppelin/upgrades/contracts/Initializable.sol
 import "../../../node_modules/@openzeppelin/contracts-ethereum-package/contracts/math/SafeMath.sol";
 import "../../../node_modules/@openzeppelin/contracts-ethereum-package/contracts/token/ERC20/IERC20.sol";
 
-interface LLP_General {
-    function LetsInvest(address payable _towhomtoIssueAddress, uint _2XLongETHAllocation, address _InvesteeTokenAddress, uint _slippage, bool _residualInToken) external payable returns(uint); 
+
+
+// this is the underlying contract that invests in 2xLongETH on Fulcrum
+interface Invest2FulcrumV2 {
+    function LetsInvest(address _FuclrumOnwardAddress, address _destTokenAddress, uint _slippage, address _towhomtoissue) payable external returns (uint);
 }
 
+interface UniSwapAddLiquityV2_General {
+    function LetsInvest(address _TokenContractAddress, address _towhomtoissue) external payable returns (uint);
+}
+
+
 // through this contract we are putting 34% allocation to 2xLongETH and 66% to Uniswap pool
-contract Link_LLP_2xETH is Initializable {
+contract LLP_General_2xETH is Initializable {
     using SafeMath for uint;
     
     // state variables
@@ -45,8 +53,8 @@ contract Link_LLP_2xETH is Initializable {
     // - THESE MUST ALWAYS STAY IN THE SAME LAYOUT
     bool private stopped;
     address payable public owner;
-    LLP_General public LLP_GeneralAddress;
-    address public ChainLinkAddress;
+    Invest2FulcrumV2 public Invest2FulcrumV2Address;
+    UniSwapAddLiquityV2_General public UniSwapAddLiquityV2_GeneralAddress;
 
     // circuit breaker modifiers
     modifier stopInEmergency {
@@ -61,27 +69,37 @@ contract Link_LLP_2xETH is Initializable {
     }
     
     function initialize
-    (address _LLP_GeneralAddress, address _ChainLinkAddress)
+    (address _Invest2FulcrumV2Address, 
+    address _UniSwapAddLiquityV2_GeneralAddress) 
     initializer public {
         stopped = false;
         owner = msg.sender;
-        LLP_GeneralAddress = LLP_General(_LLP_GeneralAddress);
-        ChainLinkAddress = _ChainLinkAddress;
+        Invest2FulcrumV2Address = Invest2FulcrumV2(_Invest2FulcrumV2Address);
+        UniSwapAddLiquityV2_GeneralAddress = UniSwapAddLiquityV2_General(_UniSwapAddLiquityV2_GeneralAddress);
     }
 
-    // this function should be called should we ever want to change the underlying LLP_GeneralAddress Contract address
-    function set_LLP_GeneralAddress(address _new_LLP_GeneralAddress) public onlyOwner {
-        LLP_GeneralAddress = LLP_General (_new_LLP_GeneralAddress);
+    // this function should be called should we ever want to change the Invest2FulcrumAddress
+    function set_Invest2FulcrumV2Address(Invest2FulcrumV2 _Invest2FulcrumV2Address) onlyOwner public {
+        Invest2FulcrumV2Address = _Invest2FulcrumV2Address;
     }
-
-    // this function should be called should we ever want to change the underlying ChainLink Contract address
-    function set_ChainLinkAddress(address _new_ChainLinkAddress) public onlyOwner {
-        ChainLinkAddress = _new_ChainLinkAddress;
+    
+    // this function should be called should we ever want to change the underlying Kyber Interface Contract address
+    function set_UniSwapAddLiquityV2_GeneralAddress(address _new_UniSwapAddLiquityV2_GeneralAddress) public onlyOwner {
+        UniSwapAddLiquityV2_GeneralAddress = UniSwapAddLiquityV2_General (_new_UniSwapAddLiquityV2_GeneralAddress);
     }
     
     // main function which will make the investments
-    function LetsInvest(address payable _towhomtoIssueAddress, uint _2XLongETHAllocation, uint _slippage, bool _residualInToken) public payable returns(uint) {
-       LLP_GeneralAddress.LetsInvest.value(msg.value)(_towhomtoIssueAddress, 34, ChainLinkAddress, 5, false);
+    function LetsInvest(address payable _towhomtoIssueAddress, uint _2XLongETHAllocation, address _InvesteeTokenAddress, uint _slippage, bool _residualInToken) external payable returns(uint) {
+        require(_2XLongETHAllocation >= 0 || _2XLongETHAllocation <= 100, "wrong allocation");
+        //Determine ETH 2x Long and Uniswap portions
+        uint ETH2xLongPortion = SafeMath.div(SafeMath.mul(msg.value,_2XLongETHAllocation),100);
+        uint UniswapPortion = SafeMath.sub(msg.value, ETH2xLongPortion);
+        require (SafeMath.sub(msg.value, SafeMath.add(UniswapPortion, ETH2xLongPortion)) == 0, "Cannot split incoming ETH appropriately");
+        // Invest Uniswap portion
+        uint LiquidityTokens = UniSwapAddLiquityV2_GeneralAddress.LetsInvest.value(UniswapPortion)(_InvesteeTokenAddress, _towhomtoIssueAddress);
+        // Invest ETH 2x Long portion
+        Invest2FulcrumV2Address.LetsInvest.value(ETH2xLongPortion)(0xd80e558027Ee753a0b95757dC3521d0326F13DA2, 0x6B175474E89094C44Da98b954EedeAC495271d0F, 5,  _towhomtoIssueAddress);
+        return (LiquidityTokens);
     }
 
     function inCaseTokengetsStuck(IERC20 _TokenAddress) onlyOwner public {
@@ -93,7 +111,7 @@ contract Link_LLP_2xETH is Initializable {
     // - fallback function let you / anyone send ETH to this wallet without the need to call any function
     function() external payable {
         if (msg.sender != owner) {
-            LetsInvest(msg.sender, 34, 5, false);}
+            revert("Not Allowed");}
     }
     
     // - to Pause the contract
