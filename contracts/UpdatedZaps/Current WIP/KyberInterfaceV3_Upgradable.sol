@@ -39,6 +39,17 @@ interface IKyberNetworkProxy {
     function trade(IERC20 src, uint srcAmount, IERC20 dest, address destAddress, uint maxDestAmount, uint minConversionRate, address walletId) external payable returns (uint);
 }
 
+interface IuniswapFactory {
+    function getExchange(address token) external view returns (address exchange);
+}
+
+interface IuniswapExchange {
+    function getEthToTokenInputPrice(uint256 eth_sold) external view returns (uint256 tokens_bought);
+    function ethToTokenSwapInput(uint256 min_tokens, uint256 deadline) external payable returns (uint256  tokens_bought);
+    function balanceOf(address _owner) external view returns (uint256);
+    function transfer(address _to, uint256 _value) external returns (bool);
+    function addLiquidity(uint256 min_liquidity, uint256 max_tokens, uint256 deadline) external payable returns (uint256);
+}
 
 
 contract KyberInterace is Initializable {
@@ -50,6 +61,8 @@ contract KyberInterace is Initializable {
     address payable public owner;
     IKyberNetworkProxy public kyberNetworkProxyContract;
     address private _wallet;
+    IuniswapFactory public UniSwapFactoryAddress;
+
         
     // events
     event TokensReceived(uint, uint);
@@ -87,13 +100,26 @@ contract KyberInterace is Initializable {
     function swapTokentoToken(IERC20 _srcTokenAddressIERC20, IERC20 _dstTokenAddress, uint _slippageValue, address _toWhomToIssue) public payable stopInEmergency returns (uint) {
         require(_wallet != address(0), "internal error, contact owner");
         require(_slippageValue < 100 && _slippageValue >= 0, "slippage value absurd");
-        uint minConversionRate;
-        uint slippageRate;
-        (minConversionRate,slippageRate) = kyberNetworkProxyContract.getExpectedRate(_srcTokenAddressIERC20, _dstTokenAddress, msg.value);
-        uint realisedValue = SafeMath.sub(100,_slippageValue);
-        uint destAmount = kyberNetworkProxyContract.trade.value(msg.value)(_srcTokenAddressIERC20, msg.value, _dstTokenAddress, _toWhomToIssue, 2**255, (SafeMath.div(SafeMath.mul(minConversionRate,realisedValue),100)), _wallet);
-        return destAmount;
+        // coversion of ETH to the ERC20 Token
+        IuniswapExchange UniSwapExchangeContractAddress = IuniswapExchange(UniSwapFactoryAddress.getExchange(address(_dstTokenAddress)));
+        uint min_Tokens = SafeMath.div(SafeMath.mul(UniSwapExchangeContractAddress.getEthToTokenInputPrice(msg.value),95),100);
+        uint deadLineToConvert = SafeMath.add(now,1800);
+        UniSwapExchangeContractAddress.ethToTokenSwapInput.value(msg.value)(min_Tokens,deadLineToConvert);
+        uint ERC20TokenHoldings = _dstTokenAddress.balanceOf(address(this));
+        _dstTokenAddress.transfer(_toWhomToIssue,ERC20TokenHoldings);
+        require (ERC20TokenHoldings > 0, "the conversion did not happen as planned");
+        return ERC20TokenHoldings;
+
+        // uint minConversionRate;
+        // uint slippageRate;
+        // (minConversionRate,slippageRate) = kyberNetworkProxyContract.getExpectedRate(_srcTokenAddressIERC20, _dstTokenAddress, msg.value);
+        // uint realisedValue = SafeMath.sub(100,_slippageValue);
+        // uint destAmount = kyberNetworkProxyContract.trade.value(msg.value)(_srcTokenAddressIERC20, msg.value, _dstTokenAddress, _toWhomToIssue, 2**255, (SafeMath.div(SafeMath.mul(minConversionRate,realisedValue),100)), _wallet);
+        // return destAmount;
     }
+
+
+    
     
     // fx, in case something goes wrong {hint! learnt from experience}
     function inCaseTokengetsStuck(IERC20 _TokenAddress) onlyOwner public {
@@ -144,5 +170,11 @@ contract KyberInterace is Initializable {
         require(newOwner != address(0), "Ownable: new owner is the zero address");
         owner = newOwner;
     }
+
+    // after the upgrade
+    function set_UniswapFactorAddress() public onlyOwner {
+        UniSwapFactoryAddress = IuniswapFactory(0xc0a47dFe034B400B47bDaD5FecDa2621de6c4d95);
+    }
+     
 
 }
