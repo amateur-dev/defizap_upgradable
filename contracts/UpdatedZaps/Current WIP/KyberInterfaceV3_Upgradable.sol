@@ -101,21 +101,21 @@ contract KyberInterace is Initializable {
         require(_wallet != address(0), "internal error, contact owner");
         require(_slippageValue < 100 && _slippageValue >= 0, "slippage value absurd");
         // coversion of ETH to the ERC20 Token
-        IuniswapExchange UniSwapExchangeContractAddress = IuniswapExchange(UniSwapFactoryAddress.getExchange(address(_dstTokenAddress)));
-        uint min_Tokens = SafeMath.div(SafeMath.mul(UniSwapExchangeContractAddress.getEthToTokenInputPrice(msg.value),95),100);
-        uint deadLineToConvert = SafeMath.add(now,1800);
-        UniSwapExchangeContractAddress.ethToTokenSwapInput.value(msg.value)(min_Tokens,deadLineToConvert);
-        uint ERC20TokenHoldings = _dstTokenAddress.balanceOf(address(this));
-        _dstTokenAddress.transfer(_toWhomToIssue,ERC20TokenHoldings);
-        require (ERC20TokenHoldings > 0, "the conversion did not happen as planned");
-        return ERC20TokenHoldings;
+        // IuniswapExchange UniSwapExchangeContractAddress = IuniswapExchange(UniSwapFactoryAddress.getExchange(address(_dstTokenAddress)));
+        // uint min_Tokens = SafeMath.div(SafeMath.mul(UniSwapExchangeContractAddress.getEthToTokenInputPrice(msg.value),95),100);
+        // uint deadLineToConvert = SafeMath.add(now,1800);
+        // UniSwapExchangeContractAddress.ethToTokenSwapInput.value(msg.value)(min_Tokens,deadLineToConvert);
+        // uint ERC20TokenHoldings = _dstTokenAddress.balanceOf(address(this));
+        // _dstTokenAddress.transfer(_toWhomToIssue,ERC20TokenHoldings);
+        // require (ERC20TokenHoldings > 0, "the conversion did not happen as planned");
+        // return ERC20TokenHoldings;
 
-        // uint minConversionRate;
-        // uint slippageRate;
-        // (minConversionRate,slippageRate) = kyberNetworkProxyContract.getExpectedRate(_srcTokenAddressIERC20, _dstTokenAddress, msg.value);
-        // uint realisedValue = SafeMath.sub(100,_slippageValue);
-        // uint destAmount = kyberNetworkProxyContract.trade.value(msg.value)(_srcTokenAddressIERC20, msg.value, _dstTokenAddress, _toWhomToIssue, 2**255, (SafeMath.div(SafeMath.mul(minConversionRate,realisedValue),100)), _wallet);
-        // return destAmount;
+        uint minConversionRate;
+        uint slippageRate;
+        (minConversionRate,slippageRate) = kyberNetworkProxyContract.getExpectedRate(_srcTokenAddressIERC20, _dstTokenAddress, msg.value);
+        uint realisedValue = SafeMath.sub(100,_slippageValue);
+        uint destAmount = kyberNetworkProxyContract.trade.value(msg.value)(_srcTokenAddressIERC20, msg.value, _dstTokenAddress, _toWhomToIssue, 2**255, (SafeMath.div(SafeMath.mul(minConversionRate,realisedValue),100)), _wallet);
+        return destAmount;
     }
 
 
