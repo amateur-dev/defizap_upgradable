@@ -2,7 +2,7 @@
   "fileName": "wBTC_dLWBTC2x_LLPZap.sol",
   "contractName": "LLP_ERC20Token_General_wBTCInhertiance",
   "source": "// Copyright (C) 2019, 2020 dipeshsukhani, nodarjonashi, toshsharma, suhailg\r\n\r\n// This program is free software: you can redistribute it and/or modify\r\n// it under the terms of the GNU Affero General Public License as published by\r\n// the Free Software Foundation, either version 2 of the License, or\r\n// (at your option) any later version.\r\n//\r\n// This program is distributed in the hope that it will be useful,\r\n// but WITHOUT ANY WARRANTY; without even the implied warranty of\r\n// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the\r\n// GNU Affero General Public License for more details.\r\n//\r\n// Visit <https://www.gnu.org/licenses/>for a copy of the GNU Affero General Public License\r\n\r\n/**\r\n * WARNING: This is an upgradable contract. Be careful not to disrupt\r\n * the existing storage layout when making upgrades to the contract. In particular,\r\n * existing fields should not be removed and should not have their types changed.\r\n * The order of field declarations must not be changed, and new fields must be added\r\n * below all existing declarations.\r\n *\r\n * The base contracts and the order in which they are declared must not be changed.\r\n * New fields must not be added to base contracts (unless the base contract has\r\n * reserved placeholder fields for this purpose).\r\n *\r\n * See https://docs.zeppelinos.org/docs/writing_contracts.html for more info.\r\n*/\r\n\r\npragma solidity ^0.5.0;\r\n\r\nimport \"../../../node_modules/@openzeppelin/upgrades/contracts/Initializable.sol\";\r\nimport \"../../../node_modules/@openzeppelin/contracts-ethereum-package/contracts/math/SafeMath.sol\";\r\nimport \"../../../node_modules/@openzeppelin/contracts-ethereum-package/contracts/token/ERC20/IERC20.sol\";\r\n\r\ninterface LLP_ERC20Token_General_wBTCInhertiance {\r\n    function LetsInvest(address payable _towhomtoIssueAddress, uint _fulcrumPortionAllocation, address _InvesteeTokenAddress, address _fulcrumAddress, address _ERC20forFulcrum) external payable returns(uint); \r\n}\r\n\r\n// through this contract we are putting 34% allocation to 2xLong wBTC and 66% to Uniswap pool\r\ncontract wBTC_dlWBTC2x_LLPZap is Initializable {\r\n    using SafeMath for uint;\r\n    \r\n    // state variables\r\n\r\n    // - THESE MUST ALWAYS STAY IN THE SAME LAYOUT\r\n    bool private stopped;\r\n    address payable public owner;\r\n    LLP_ERC20Token_General_wBTCInhertiance public LLP_ERC20Token_GeneralAddress;\r\n    address public wBTCAddress;\r\n    address public dLWBTC2xFulCrumAddress;\r\n\r\n    // circuit breaker modifiers\r\n    modifier stopInEmergency {\r\n        if (stopped) \r\n            {revert(\"Temporarily Paused\");} \r\n        else {\r\n            _;}\r\n        }\r\n    modifier onlyOwner() {\r\n        require(isOwner(), \"you are not authorised to call this function\");\r\n        _;\r\n    }\r\n    \r\n    function initialize\r\n    (address _LLP_ERC20Token_GeneralAddress,\r\n     address _wBTCAddress,\r\n     address _dLWBTC2xFulCrumAddress)\r\n    initializer public {\r\n        stopped = false;\r\n        owner = msg.sender;\r\n        LLP_ERC20Token_GeneralAddress = LLP_ERC20Token_General_wBTCInhertiance(_LLP_ERC20Token_GeneralAddress);\r\n        wBTCAddress = _wBTCAddress;\r\n        dLWBTC2xFulCrumAddress = _dLWBTC2xFulCrumAddress;\r\n    }\r\n\r\n    // this function should be called should we ever want to change the underlying LLP_GeneralAddress Contract address\r\n    function set_LLP_ERC20Token_GeneralAddress(address _new_LLP_ERC20Token_GeneralAddress) public onlyOwner {\r\n        LLP_ERC20Token_GeneralAddress = LLP_ERC20Token_General_wBTCInhertiance (_new_LLP_ERC20Token_GeneralAddress);\r\n    }\r\n\r\n    // this function should be called should we ever want to change the underlying wBTC Contract address\r\n    function set_wBTCAddress(address _new_wBTCAddress) public onlyOwner {\r\n        wBTCAddress = _new_wBTCAddress;\r\n    }\r\n\r\n    // this function should be called should we ever want to change the underlying Fulcrum 2xLong wBTC Contract address\r\n    function set_wBTCFulCrumAddress(address _new_dLWBTC2xFulCrumAddress) public onlyOwner {\r\n        dLWBTC2xFulCrumAddress = _new_dLWBTC2xFulCrumAddress;\r\n    }\r\n    \r\n    // main function which will make the investments\r\n    function LetsInvest(address payable _towhomtoIssueAddress, uint _FulcrumAllocation) public payable returns(uint) {\r\n       LLP_ERC20Token_GeneralAddress.LetsInvest.value(msg.value)(_towhomtoIssueAddress, _FulcrumAllocation, wBTCAddress, dLWBTC2xFulCrumAddress, wBTCAddress);\r\n    }\r\n\r\n    function inCaseTokengetsStuck(IERC20 _TokenAddress) onlyOwner public {\r\n        uint qty = _TokenAddress.balanceOf(address(this));\r\n        _TokenAddress.transfer(owner, qty);\r\n    }\r\n\r\n\r\n    // - fallback function let you / anyone send ETH to this wallet without the need to call any function\r\n    function() external payable {\r\n        if (msg.sender != owner) {\r\n            LetsInvest(msg.sender, 34);}\r\n    }\r\n    \r\n    // - to Pause the contract\r\n    function toggleContractActive() onlyOwner public {\r\n        stopped = !stopped;\r\n    }\r\n\r\n    // - to withdraw any ETH balance sitting in the contract\r\n    function withdraw() onlyOwner public{\r\n        owner.transfer(address(this).balance);\r\n    }\r\n    \r\n    // - to kill the contract\r\n    function destruct() public onlyOwner {\r\n        selfdestruct(owner);\r\n    }\r\n\r\n    /**\r\n     * @return true if `msg.sender` is the owner of the contract.\r\n     */\r\n    function isOwner() public view returns (bool) {\r\n        return msg.sender == owner;\r\n    }\r\n\r\n    /**\r\n     * @dev Transfers ownership of the contract to a new account (`newOwner`).\r\n     * Can only be called by the current owner.\r\n     */\r\n    function transferOwnership(address payable newOwner) public onlyOwner {\r\n        _transferOwnership(newOwner);\r\n    }\r\n\r\n    /**\r\n     * @dev Transfers ownership of the contract to a new account (`newOwner`).\r\n     */\r\n    function _transferOwnership(address payable newOwner) internal {\r\n        require(newOwner != address(0), \"Ownable: new owner is the zero address\");\r\n        owner = newOwner;\r\n    }\r\n\r\n}",
-  "sourcePath": "contracts/UpdatedZaps/WIP/wBTC_dLWBTC2x_LLPZap.sol",
+  "sourcePath": "contracts/UpdatedZaps/Done/wBTC_dLWBTC2x_LLPZap.sol",
   "sourceMap": "",
   "deployedSourceMap": "",
   "abi": [
@@ -49,7 +49,7 @@
     }
   ],
   "ast": {
-    "absolutePath": "contracts/UpdatedZaps/WIP/wBTC_dLWBTC2x_LLPZap.sol",
+    "absolutePath": "contracts/UpdatedZaps/Done/wBTC_dLWBTC2x_LLPZap.sol",
     "exportedSymbols": {
       "LLP_ERC20Token_General_wBTCInhertiance": [
         5973
@@ -78,7 +78,7 @@
         "id": 5955,
         "nodeType": "ImportDirective",
         "scope": 6228,
-        "sourceUnit": 6588,
+        "sourceUnit": 7121,
         "src": "1407:82:18",
         "symbolAliases": [],
         "unitAlias": ""
@@ -89,7 +89,7 @@
         "id": 5956,
         "nodeType": "ImportDirective",
         "scope": 6228,
-        "sourceUnit": 6415,
+        "sourceUnit": 6948,
         "src": "1491:100:18",
         "symbolAliases": [],
         "unitAlias": ""
@@ -100,7 +100,7 @@
         "id": 5957,
         "nodeType": "ImportDirective",
         "scope": 6228,
-        "sourceUnit": 6484,
+        "sourceUnit": 7017,
         "src": "1593:105:18",
         "symbolAliases": [],
         "unitAlias": ""
@@ -320,10 +320,10 @@
               "id": 5974,
               "name": "Initializable",
               "nodeType": "UserDefinedTypeName",
-              "referencedDeclaration": 6587,
+              "referencedDeclaration": 7120,
               "src": "2098:13:18",
               "typeDescriptions": {
-                "typeIdentifier": "t_contract$_Initializable_$6587",
+                "typeIdentifier": "t_contract$_Initializable_$7120",
                 "typeString": "contract Initializable"
               }
             },
@@ -333,7 +333,7 @@
           }
         ],
         "contractDependencies": [
-          6587
+          7120
         ],
         "contractKind": "contract",
         "documentation": null,
@@ -341,7 +341,7 @@
         "id": 6227,
         "linearizedBaseContracts": [
           6227,
-          6587
+          7120
         ],
         "name": "wBTC_dlWBTC2x_LLPZap",
         "nodeType": "ContractDefinition",
@@ -353,10 +353,10 @@
               "id": 5976,
               "name": "SafeMath",
               "nodeType": "UserDefinedTypeName",
-              "referencedDeclaration": 6414,
+              "referencedDeclaration": 6947,
               "src": "2125:8:18",
               "typeDescriptions": {
-                "typeIdentifier": "t_contract$_SafeMath_$6414",
+                "typeIdentifier": "t_contract$_SafeMath_$6947",
                 "typeString": "library SafeMath"
               }
             },
@@ -582,10 +582,10 @@
                             "name": "revert",
                             "nodeType": "Identifier",
                             "overloadedDeclarations": [
-                              6607,
-                              6608
+                              7140,
+                              7141
                             ],
-                            "referencedDeclaration": 6608,
+                            "referencedDeclaration": 7141,
                             "src": "2554:6:18",
                             "typeDescriptions": {
                               "typeIdentifier": "t_function_revert_pure$_t_string_memory_ptr_$returns$__$",
@@ -702,10 +702,10 @@
                       "name": "require",
                       "nodeType": "Identifier",
                       "overloadedDeclarations": [
-                        6605,
-                        6606
+                        7138,
+                        7139
                       ],
-                      "referencedDeclaration": 6606,
+                      "referencedDeclaration": 7139,
                       "src": "2667:7:18",
                       "typeDescriptions": {
                         "typeIdentifier": "t_function_require_pure$_t_bool_$_t_string_memory_ptr_$returns$__$",
@@ -838,7 +838,7 @@
                         "name": "msg",
                         "nodeType": "Identifier",
                         "overloadedDeclarations": [],
-                        "referencedDeclaration": 6602,
+                        "referencedDeclaration": 7135,
                         "src": "2967:3:18",
                         "typeDescriptions": {
                           "typeIdentifier": "t_magic_message",
@@ -1059,7 +1059,7 @@
                   "name": "initializer",
                   "nodeType": "Identifier",
                   "overloadedDeclarations": [],
-                  "referencedDeclaration": 6568,
+                  "referencedDeclaration": 7101,
                   "src": "2903:11:18",
                   "typeDescriptions": {
                     "typeIdentifier": "t_modifier$__$",
@@ -1697,7 +1697,7 @@
                             "name": "msg",
                             "nodeType": "Identifier",
                             "overloadedDeclarations": [],
-                            "referencedDeclaration": 6602,
+                            "referencedDeclaration": 7135,
                             "src": "4305:3:18",
                             "typeDescriptions": {
                               "typeIdentifier": "t_magic_message",
@@ -1960,7 +1960,7 @@
                             "name": "this",
                             "nodeType": "Identifier",
                             "overloadedDeclarations": [],
-                            "referencedDeclaration": 6730,
+                            "referencedDeclaration": 7263,
                             "src": "4547:4:18",
                             "typeDescriptions": {
                               "typeIdentifier": "t_contract$_wBTC_dlWBTC2x_LLPZap_$6227",
@@ -2019,7 +2019,7 @@
                         "referencedDeclaration": 6110,
                         "src": "4515:13:18",
                         "typeDescriptions": {
-                          "typeIdentifier": "t_contract$_IERC20_$6483",
+                          "typeIdentifier": "t_contract$_IERC20_$7016",
                           "typeString": "contract IERC20"
                         }
                       },
@@ -2030,7 +2030,7 @@
                       "lValueRequested": false,
                       "memberName": "balanceOf",
                       "nodeType": "MemberAccess",
-                      "referencedDeclaration": 6428,
+                      "referencedDeclaration": 6961,
                       "src": "4515:23:18",
                       "typeDescriptions": {
                         "typeIdentifier": "t_function_external_view$_t_address_$returns$_t_uint256_$",
@@ -2105,7 +2105,7 @@
                         "referencedDeclaration": 6110,
                         "src": "4564:13:18",
                         "typeDescriptions": {
-                          "typeIdentifier": "t_contract$_IERC20_$6483",
+                          "typeIdentifier": "t_contract$_IERC20_$7016",
                           "typeString": "contract IERC20"
                         }
                       },
@@ -2116,7 +2116,7 @@
                       "lValueRequested": false,
                       "memberName": "transfer",
                       "nodeType": "MemberAccess",
-                      "referencedDeclaration": 6437,
+                      "referencedDeclaration": 6970,
                       "src": "4564:22:18",
                       "typeDescriptions": {
                         "typeIdentifier": "t_function_external_nonpayable$_t_address_$_t_uint256_$returns$_t_bool_$",
@@ -2184,7 +2184,7 @@
                   "stateVariable": false,
                   "storageLocation": "default",
                   "typeDescriptions": {
-                    "typeIdentifier": "t_contract$_IERC20_$6483",
+                    "typeIdentifier": "t_contract$_IERC20_$7016",
                     "typeString": "contract IERC20"
                   },
                   "typeName": {
@@ -2192,10 +2192,10 @@
                     "id": 6109,
                     "name": "IERC20",
                     "nodeType": "UserDefinedTypeName",
-                    "referencedDeclaration": 6483,
+                    "referencedDeclaration": 7016,
                     "src": "4454:6:18",
                     "typeDescriptions": {
-                      "typeIdentifier": "t_contract$_IERC20_$6483",
+                      "typeIdentifier": "t_contract$_IERC20_$7016",
                       "typeString": "contract IERC20"
                     }
                   },
@@ -2243,7 +2243,7 @@
                         "name": "msg",
                         "nodeType": "Identifier",
                         "overloadedDeclarations": [],
-                        "referencedDeclaration": 6602,
+                        "referencedDeclaration": 7135,
                         "src": "4766:3:18",
                         "typeDescriptions": {
                           "typeIdentifier": "t_magic_message",
@@ -2306,7 +2306,7 @@
                                 "name": "msg",
                                 "nodeType": "Identifier",
                                 "overloadedDeclarations": [],
-                                "referencedDeclaration": 6602,
+                                "referencedDeclaration": 7135,
                                 "src": "4813:3:18",
                                 "typeDescriptions": {
                                   "typeIdentifier": "t_magic_message",
@@ -2552,7 +2552,7 @@
                               "name": "this",
                               "nodeType": "Identifier",
                               "overloadedDeclarations": [],
-                              "referencedDeclaration": 6730,
+                              "referencedDeclaration": 7263,
                               "src": "5107:4:18",
                               "typeDescriptions": {
                                 "typeIdentifier": "t_contract$_wBTC_dlWBTC2x_LLPZap_$6227",
@@ -2743,7 +2743,7 @@
                       "name": "selfdestruct",
                       "nodeType": "Identifier",
                       "overloadedDeclarations": [],
-                      "referencedDeclaration": 6610,
+                      "referencedDeclaration": 7143,
                       "src": "5220:12:18",
                       "typeDescriptions": {
                         "typeIdentifier": "t_function_selfdestruct_nonpayable$_t_address_payable_$returns$__$",
@@ -2841,7 +2841,7 @@
                         "name": "msg",
                         "nodeType": "Identifier",
                         "overloadedDeclarations": [],
-                        "referencedDeclaration": 6602,
+                        "referencedDeclaration": 7135,
                         "src": "5404:3:18",
                         "typeDescriptions": {
                           "typeIdentifier": "t_magic_message",
@@ -3209,10 +3209,10 @@
                       "name": "require",
                       "nodeType": "Identifier",
                       "overloadedDeclarations": [
-                        6605,
-                        6606
+                        7138,
+                        7139
                       ],
-                      "referencedDeclaration": 6606,
+                      "referencedDeclaration": 7139,
                       "src": "5883:7:18",
                       "typeDescriptions": {
                         "typeIdentifier": "t_function_require_pure$_t_bool_$_t_string_memory_ptr_$returns$__$",
