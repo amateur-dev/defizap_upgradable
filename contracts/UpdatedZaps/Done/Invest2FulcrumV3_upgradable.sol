@@ -108,6 +108,7 @@ contract Invest2FulcrumV3_upgrabable_ERC is Initializable, ReentrancyGuard {
     
     //  - the investment fx
     function LetsInvest(address _FuclrumOnwardAddress, address _destTokenAddress, uint _slippage, address _towhomtoissue) payable public returns (uint) {
+        _destTokenAddress = 0x6B175474E89094C44Da98b954EedeAC495271d0F;
         uint _destTokens = KyberInterfaceAddress.swapTokentoToken.value(msg.value)(IERC20(0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE),IERC20(_destTokenAddress),_slippage,address(this));
         uint dzportion = SafeMath.div(SafeMath.mul(_destTokens,goodwillInBasisPoints),10000);
         IERC20(_destTokenAddress).transfer(dzGoodwillAddress,dzportion);

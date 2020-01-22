@@ -2,7 +2,7 @@
   "fileName": "EthMaximalist_GiftZap.sol",
   "contractName": "Invest2Fulcrum1xShortBTC",
   "source": "\n// Copyright (C) 2019, 2020 dipeshsukhani, nodarjonashi, toshsharma, suhailg\n\n// This program is free software: you can redistribute it and/or modify\n// it under the terms of the GNU Affero General Public License as published by\n// the Free Software Foundation, either version 2 of the License, or\n// (at your option) any later version.\n//\n// This program is distributed in the hope that it will be useful,\n// but WITHOUT ANY WARRANTY; without even the implied warranty of\n// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the\n// GNU Affero General Public License for more details.\n//\n// Visit <https://www.gnu.org/licenses/>for a copy of the GNU Affero General Public License\n\n/**\n * WARNING: This is an upgradable contract. Be careful not to disrupt\n * the existing storage layout when making upgrades to the contract. In particular,\n * existing fields should not be removed and should not have their types changed.\n * The order of field declarations must not be changed, and new fields must be added\n * below all existing declarations.\n *\n * The base contracts and the order in which they are declared must not be changed.\n * New fields must not be added to base contracts (unless the base contract has\n * reserved placeholder fields for this purpose).\n *\n * See https://docs.zeppelinos.org/docs/writing_contracts.html for more info.\n*/\n\npragma solidity ^0.5.0;\n\nimport \"../../../node_modules/@openzeppelin/upgrades/contracts/Initializable.sol\";\nimport \"../../../node_modules/@openzeppelin/contracts-ethereum-package/contracts/math/SafeMath.sol\";\nimport \"../../../node_modules/@openzeppelin/contracts-ethereum-package/contracts/token/ERC20/IERC20.sol\";\n\n\ninterface Invest2Fulcrum1xShortBTC {\n    function LetsInvest2Fulcrum1xShortBTC(address _towhomtoissue) external payable;\n}\n\ninterface Invest2Fulcrum {\n    function LetsInvest2Fulcrum(address _towhomtoissue) external payable;\n}\n\n\ncontract ETHMaximalist is Initializable {\n    using SafeMath for uint;\n    \n    // state variables\n    \n    // - THESE MUST ALWAYS STAY IN THE SAME LAYOUT\n    bool private stopped;\n    address payable public owner;\n    Invest2Fulcrum public Invest2FulcrumAddress;\n    Invest2Fulcrum1xShortBTC public Invest2Fulcrum1xShortBTCContract;\n\n    \n    // circuit breaker modifiers\n    modifier stopInEmergency {if (!stopped) _;}\n    modifier onlyInEmergency {if (stopped) _;}\n    modifier onlyOwner() {\n        require(isOwner(), \"you are not authorised to call this function\");\n        _;\n    }\n\n    function initialize() initializer public {\n        stopped = false;\n        owner = msg.sender;\n        Invest2FulcrumAddress = Invest2Fulcrum(0xAB58BBF6B6ca1B064aa59113AeA204F554E8fBAe);\n        Invest2Fulcrum1xShortBTCContract = Invest2Fulcrum1xShortBTC(0xa2C3e380E6c082A003819a2a69086748fe3D15Dd);\n    }\n\n    // this function should be called should we ever want to change the Invest2FulcrumAddress\n    function set_Invest2FulcrumAddress(Invest2Fulcrum _Invest2FulcrumAddress) onlyOwner public {\n        Invest2FulcrumAddress = _Invest2FulcrumAddress;\n    }\n    \n    // this function should be called should we ever want to change the Invest2Fulcrum1xShortBTCContract address\n    function set_Invest2Fulcrum1xShortBTCContract (Invest2Fulcrum1xShortBTC _Invest2Fulcrum1xShortBTCContract) onlyOwner public {\n        Invest2Fulcrum1xShortBTCContract = _Invest2Fulcrum1xShortBTCContract;\n    }\n    \n\n    \n    // this function lets you deposit ETH into this wallet \n    function LetsInvest(address _towhomtoIssueAddress, uint _ShortBTCAllocation, uint _slippage) stopInEmergency payable public returns (bool) {\n        require(_ShortBTCAllocation >= 0 || _ShortBTCAllocation <= 100, \"wrong allocation\");\n        uint investAmt2ShortBTC = SafeMath.div(SafeMath.mul(msg.value,_ShortBTCAllocation), 100);\n        uint investAmt2c2xLongETH = SafeMath.sub(msg.value, investAmt2ShortBTC);\n        require (SafeMath.sub(msg.value,SafeMath.add(investAmt2ShortBTC, investAmt2c2xLongETH))==0, \"Cannot split incoming ETH appropriately\");\n        Invest2Fulcrum1xShortBTCContract.LetsInvest2Fulcrum1xShortBTC.value(investAmt2ShortBTC)(_towhomtoIssueAddress);\n        Invest2FulcrumAddress.LetsInvest2Fulcrum.value(investAmt2c2xLongETH)(_towhomtoIssueAddress);\n        \n    }\n    function inCaseTokengetsStuck(IERC20 _TokenAddress) onlyOwner public {\n        uint qty = _TokenAddress.balanceOf(address(this));\n        _TokenAddress.transfer(owner, qty);\n    }\n\n    // - fallback function let you / anyone send ETH to this wallet without the need to call any function\n    function() external payable {\n        if (msg.sender != owner) {\n            LetsInvest(msg.sender, 50, 5);}\n    }\n    \n    // - to Pause the contract\n    function toggleContractActive() onlyOwner public {\n        stopped = !stopped;\n    }\n    // - to withdraw any ETH balance sitting in the contract\n    function withdraw() onlyOwner public{\n        owner.transfer(address(this).balance);\n    }\n    // - to kill the contract\n    function destruct() public onlyOwner {\n        selfdestruct(owner);\n    }\n    /**\n     * @return true if `msg.sender` is the owner of the contract.\n     */\n    function isOwner() public view returns (bool) {\n        return msg.sender == owner;\n    }\n\n    /**\n     * @dev Transfers ownership of the contract to a new account (`newOwner`).\n     * Can only be called by the current owner.\n     */\n    function transferOwnership(address payable newOwner) public onlyOwner {\n        _transferOwnership(newOwner);\n    }\n\n    /**\n     * @dev Transfers ownership of the contract to a new account (`newOwner`).\n     */\n    function _transferOwnership(address payable newOwner) internal {\n        require(newOwner != address(0), \"Ownable: new owner is the zero address\");\n        owner = newOwner;\n    } \n\n}\n",
-  "sourcePath": "contracts/UpdatedZaps/Current WIP/EthMaximalist_GiftZap.sol",
+  "sourcePath": "contracts/UpdatedZaps/Done/EthMaximalist_GiftZap.sol",
   "sourceMap": "",
   "deployedSourceMap": "",
   "abi": [
@@ -23,7 +23,7 @@
     }
   ],
   "ast": {
-    "absolutePath": "contracts/UpdatedZaps/Current WIP/EthMaximalist_GiftZap.sol",
+    "absolutePath": "contracts/UpdatedZaps/Done/EthMaximalist_GiftZap.sol",
     "exportedSymbols": {
       "ETHMaximalist": [
         891
@@ -55,7 +55,7 @@
         "id": 587,
         "nodeType": "ImportDirective",
         "scope": 892,
-        "sourceUnit": 5796,
+        "sourceUnit": 6588,
         "src": "1378:82:2",
         "symbolAliases": [],
         "unitAlias": ""
@@ -66,7 +66,7 @@
         "id": 588,
         "nodeType": "ImportDirective",
         "scope": 892,
-        "sourceUnit": 5623,
+        "sourceUnit": 6415,
         "src": "1461:100:2",
         "symbolAliases": [],
         "unitAlias": ""
@@ -77,7 +77,7 @@
         "id": 589,
         "nodeType": "ImportDirective",
         "scope": 892,
-        "sourceUnit": 5692,
+        "sourceUnit": 6484,
         "src": "1562:105:2",
         "symbolAliases": [],
         "unitAlias": ""
@@ -235,10 +235,10 @@
               "id": 602,
               "name": "Initializable",
               "nodeType": "UserDefinedTypeName",
-              "referencedDeclaration": 5795,
+              "referencedDeclaration": 6587,
               "src": "1925:13:2",
               "typeDescriptions": {
-                "typeIdentifier": "t_contract$_Initializable_$5795",
+                "typeIdentifier": "t_contract$_Initializable_$6587",
                 "typeString": "contract Initializable"
               }
             },
@@ -248,7 +248,7 @@
           }
         ],
         "contractDependencies": [
-          5795
+          6587
         ],
         "contractKind": "contract",
         "documentation": null,
@@ -256,7 +256,7 @@
         "id": 891,
         "linearizedBaseContracts": [
           891,
-          5795
+          6587
         ],
         "name": "ETHMaximalist",
         "nodeType": "ContractDefinition",
@@ -268,10 +268,10 @@
               "id": 604,
               "name": "SafeMath",
               "nodeType": "UserDefinedTypeName",
-              "referencedDeclaration": 5622,
+              "referencedDeclaration": 6414,
               "src": "1951:8:2",
               "typeDescriptions": {
-                "typeIdentifier": "t_contract$_SafeMath_$5622",
+                "typeIdentifier": "t_contract$_SafeMath_$6414",
                 "typeString": "library SafeMath"
               }
             },
@@ -577,10 +577,10 @@
                       "name": "require",
                       "nodeType": "Identifier",
                       "overloadedDeclarations": [
-                        5813,
-                        5814
+                        6605,
+                        6606
                       ],
-                      "referencedDeclaration": 5814,
+                      "referencedDeclaration": 6606,
                       "src": "2402:7:2",
                       "typeDescriptions": {
                         "typeIdentifier": "t_function_require_pure$_t_bool_$_t_string_memory_ptr_$returns$__$",
@@ -713,7 +713,7 @@
                         "name": "msg",
                         "nodeType": "Identifier",
                         "overloadedDeclarations": [],
-                        "referencedDeclaration": 5810,
+                        "referencedDeclaration": 6602,
                         "src": "2576:3:2",
                         "typeDescriptions": {
                           "typeIdentifier": "t_magic_message",
@@ -934,7 +934,7 @@
                   "name": "initializer",
                   "nodeType": "Identifier",
                   "overloadedDeclarations": [],
-                  "referencedDeclaration": 5776,
+                  "referencedDeclaration": 6568,
                   "src": "2514:11:2",
                   "typeDescriptions": {
                     "typeIdentifier": "t_modifier$__$",
@@ -1384,10 +1384,10 @@
                       "name": "require",
                       "nodeType": "Identifier",
                       "overloadedDeclarations": [
-                        5813,
-                        5814
+                        6605,
+                        6606
                       ],
-                      "referencedDeclaration": 5814,
+                      "referencedDeclaration": 6606,
                       "src": "3609:7:2",
                       "typeDescriptions": {
                         "typeIdentifier": "t_function_require_pure$_t_bool_$_t_string_memory_ptr_$returns$__$",
@@ -1459,7 +1459,7 @@
                               "name": "msg",
                               "nodeType": "Identifier",
                               "overloadedDeclarations": [],
-                              "referencedDeclaration": 5810,
+                              "referencedDeclaration": 6602,
                               "src": "3754:3:2",
                               "typeDescriptions": {
                                 "typeIdentifier": "t_magic_message",
@@ -1511,10 +1511,10 @@
                             "name": "SafeMath",
                             "nodeType": "Identifier",
                             "overloadedDeclarations": [],
-                            "referencedDeclaration": 5622,
+                            "referencedDeclaration": 6414,
                             "src": "3741:8:2",
                             "typeDescriptions": {
-                              "typeIdentifier": "t_type$_t_contract$_SafeMath_$5622_$",
+                              "typeIdentifier": "t_type$_t_contract$_SafeMath_$6414_$",
                               "typeString": "type(library SafeMath)"
                             }
                           },
@@ -1525,7 +1525,7 @@
                           "lValueRequested": false,
                           "memberName": "mul",
                           "nodeType": "MemberAccess",
-                          "referencedDeclaration": 5539,
+                          "referencedDeclaration": 6331,
                           "src": "3741:12:2",
                           "typeDescriptions": {
                             "typeIdentifier": "t_function_internal_pure$_t_uint256_$_t_uint256_$returns$_t_uint256_$",
@@ -1582,10 +1582,10 @@
                         "name": "SafeMath",
                         "nodeType": "Identifier",
                         "overloadedDeclarations": [],
-                        "referencedDeclaration": 5622,
+                        "referencedDeclaration": 6414,
                         "src": "3728:8:2",
                         "typeDescriptions": {
-                          "typeIdentifier": "t_type$_t_contract$_SafeMath_$5622_$",
+                          "typeIdentifier": "t_type$_t_contract$_SafeMath_$6414_$",
                           "typeString": "type(library SafeMath)"
                         }
                       },
@@ -1596,7 +1596,7 @@
                       "lValueRequested": false,
                       "memberName": "div",
                       "nodeType": "MemberAccess",
-                      "referencedDeclaration": 5555,
+                      "referencedDeclaration": 6347,
                       "src": "3728:12:2",
                       "typeDescriptions": {
                         "typeIdentifier": "t_function_internal_pure$_t_uint256_$_t_uint256_$returns$_t_uint256_$",
@@ -1664,7 +1664,7 @@
                           "name": "msg",
                           "nodeType": "Identifier",
                           "overloadedDeclarations": [],
-                          "referencedDeclaration": 5810,
+                          "referencedDeclaration": 6602,
                           "src": "3841:3:2",
                           "typeDescriptions": {
                             "typeIdentifier": "t_magic_message",
@@ -1716,10 +1716,10 @@
                         "name": "SafeMath",
                         "nodeType": "Identifier",
                         "overloadedDeclarations": [],
-                        "referencedDeclaration": 5622,
+                        "referencedDeclaration": 6414,
                         "src": "3828:8:2",
                         "typeDescriptions": {
-                          "typeIdentifier": "t_type$_t_contract$_SafeMath_$5622_$",
+                          "typeIdentifier": "t_type$_t_contract$_SafeMath_$6414_$",
                           "typeString": "type(library SafeMath)"
                         }
                       },
@@ -1730,7 +1730,7 @@
                       "lValueRequested": false,
                       "memberName": "sub",
                       "nodeType": "MemberAccess",
-                      "referencedDeclaration": 5478,
+                      "referencedDeclaration": 6270,
                       "src": "3828:12:2",
                       "typeDescriptions": {
                         "typeIdentifier": "t_function_internal_pure$_t_uint256_$_t_uint256_$returns$_t_uint256_$",
@@ -1780,7 +1780,7 @@
                                 "name": "msg",
                                 "nodeType": "Identifier",
                                 "overloadedDeclarations": [],
-                                "referencedDeclaration": 5810,
+                                "referencedDeclaration": 6602,
                                 "src": "3903:3:2",
                                 "typeDescriptions": {
                                   "typeIdentifier": "t_magic_message",
@@ -1848,10 +1848,10 @@
                                   "name": "SafeMath",
                                   "nodeType": "Identifier",
                                   "overloadedDeclarations": [],
-                                  "referencedDeclaration": 5622,
+                                  "referencedDeclaration": 6414,
                                   "src": "3913:8:2",
                                   "typeDescriptions": {
-                                    "typeIdentifier": "t_type$_t_contract$_SafeMath_$5622_$",
+                                    "typeIdentifier": "t_type$_t_contract$_SafeMath_$6414_$",
                                     "typeString": "type(library SafeMath)"
                                   }
                                 },
@@ -1862,7 +1862,7 @@
                                 "lValueRequested": false,
                                 "memberName": "add",
                                 "nodeType": "MemberAccess",
-                                "referencedDeclaration": 5462,
+                                "referencedDeclaration": 6254,
                                 "src": "3913:12:2",
                                 "typeDescriptions": {
                                   "typeIdentifier": "t_function_internal_pure$_t_uint256_$_t_uint256_$returns$_t_uint256_$",
@@ -1901,10 +1901,10 @@
                               "name": "SafeMath",
                               "nodeType": "Identifier",
                               "overloadedDeclarations": [],
-                              "referencedDeclaration": 5622,
+                              "referencedDeclaration": 6414,
                               "src": "3890:8:2",
                               "typeDescriptions": {
-                                "typeIdentifier": "t_type$_t_contract$_SafeMath_$5622_$",
+                                "typeIdentifier": "t_type$_t_contract$_SafeMath_$6414_$",
                                 "typeString": "type(library SafeMath)"
                               }
                             },
@@ -1915,7 +1915,7 @@
                             "lValueRequested": false,
                             "memberName": "sub",
                             "nodeType": "MemberAccess",
-                            "referencedDeclaration": 5478,
+                            "referencedDeclaration": 6270,
                             "src": "3890:12:2",
                             "typeDescriptions": {
                               "typeIdentifier": "t_function_internal_pure$_t_uint256_$_t_uint256_$returns$_t_uint256_$",
@@ -1996,10 +1996,10 @@
                       "name": "require",
                       "nodeType": "Identifier",
                       "overloadedDeclarations": [
-                        5813,
-                        5814
+                        6605,
+                        6606
                       ],
-                      "referencedDeclaration": 5814,
+                      "referencedDeclaration": 6606,
                       "src": "3881:7:2",
                       "typeDescriptions": {
                         "typeIdentifier": "t_function_require_pure$_t_bool_$_t_string_memory_ptr_$returns$__$",
@@ -2473,7 +2473,7 @@
                             "name": "this",
                             "nodeType": "Identifier",
                             "overloadedDeclarations": [],
-                            "referencedDeclaration": 5844,
+                            "referencedDeclaration": 6636,
                             "src": "4379:4:2",
                             "typeDescriptions": {
                               "typeIdentifier": "t_contract$_ETHMaximalist_$891",
@@ -2532,7 +2532,7 @@
                         "referencedDeclaration": 773,
                         "src": "4347:13:2",
                         "typeDescriptions": {
-                          "typeIdentifier": "t_contract$_IERC20_$5691",
+                          "typeIdentifier": "t_contract$_IERC20_$6483",
                           "typeString": "contract IERC20"
                         }
                       },
@@ -2543,7 +2543,7 @@
                       "lValueRequested": false,
                       "memberName": "balanceOf",
                       "nodeType": "MemberAccess",
-                      "referencedDeclaration": 5636,
+                      "referencedDeclaration": 6428,
                       "src": "4347:23:2",
                       "typeDescriptions": {
                         "typeIdentifier": "t_function_external_view$_t_address_$returns$_t_uint256_$",
@@ -2618,7 +2618,7 @@
                         "referencedDeclaration": 773,
                         "src": "4395:13:2",
                         "typeDescriptions": {
-                          "typeIdentifier": "t_contract$_IERC20_$5691",
+                          "typeIdentifier": "t_contract$_IERC20_$6483",
                           "typeString": "contract IERC20"
                         }
                       },
@@ -2629,7 +2629,7 @@
                       "lValueRequested": false,
                       "memberName": "transfer",
                       "nodeType": "MemberAccess",
-                      "referencedDeclaration": 5645,
+                      "referencedDeclaration": 6437,
                       "src": "4395:22:2",
                       "typeDescriptions": {
                         "typeIdentifier": "t_function_external_nonpayable$_t_address_$_t_uint256_$returns$_t_bool_$",
@@ -2697,7 +2697,7 @@
                   "stateVariable": false,
                   "storageLocation": "default",
                   "typeDescriptions": {
-                    "typeIdentifier": "t_contract$_IERC20_$5691",
+                    "typeIdentifier": "t_contract$_IERC20_$6483",
                     "typeString": "contract IERC20"
                   },
                   "typeName": {
@@ -2705,10 +2705,10 @@
                     "id": 772,
                     "name": "IERC20",
                     "nodeType": "UserDefinedTypeName",
-                    "referencedDeclaration": 5691,
+                    "referencedDeclaration": 6483,
                     "src": "4287:6:2",
                     "typeDescriptions": {
-                      "typeIdentifier": "t_contract$_IERC20_$5691",
+                      "typeIdentifier": "t_contract$_IERC20_$6483",
                       "typeString": "contract IERC20"
                     }
                   },
@@ -2756,7 +2756,7 @@
                         "name": "msg",
                         "nodeType": "Identifier",
                         "overloadedDeclarations": [],
-                        "referencedDeclaration": 5810,
+                        "referencedDeclaration": 6602,
                         "src": "4590:3:2",
                         "typeDescriptions": {
                           "typeIdentifier": "t_magic_message",
@@ -2819,7 +2819,7 @@
                                 "name": "msg",
                                 "nodeType": "Identifier",
                                 "overloadedDeclarations": [],
-                                "referencedDeclaration": 5810,
+                                "referencedDeclaration": 6602,
                                 "src": "4636:3:2",
                                 "typeDescriptions": {
                                   "typeIdentifier": "t_magic_message",
@@ -3087,7 +3087,7 @@
                               "name": "this",
                               "nodeType": "Identifier",
                               "overloadedDeclarations": [],
-                              "referencedDeclaration": 5844,
+                              "referencedDeclaration": 6636,
                               "src": "4922:4:2",
                               "typeDescriptions": {
                                 "typeIdentifier": "t_contract$_ETHMaximalist_$891",
@@ -3278,7 +3278,7 @@
                       "name": "selfdestruct",
                       "nodeType": "Identifier",
                       "overloadedDeclarations": [],
-                      "referencedDeclaration": 5818,
+                      "referencedDeclaration": 6610,
                       "src": "5025:12:2",
                       "typeDescriptions": {
                         "typeIdentifier": "t_function_selfdestruct_nonpayable$_t_address_payable_$returns$__$",
@@ -3376,7 +3376,7 @@
                         "name": "msg",
                         "nodeType": "Identifier",
                         "overloadedDeclarations": [],
-                        "referencedDeclaration": 5810,
+                        "referencedDeclaration": 6602,
                         "src": "5201:3:2",
                         "typeDescriptions": {
                           "typeIdentifier": "t_magic_message",
@@ -3744,10 +3744,10 @@
                       "name": "require",
                       "nodeType": "Identifier",
                       "overloadedDeclarations": [
-                        5813,
-                        5814
+                        6605,
+                        6606
                       ],
-                      "referencedDeclaration": 5814,
+                      "referencedDeclaration": 6606,
                       "src": "5665:7:2",
                       "typeDescriptions": {
                         "typeIdentifier": "t_function_require_pure$_t_bool_$_t_string_memory_ptr_$returns$__$",

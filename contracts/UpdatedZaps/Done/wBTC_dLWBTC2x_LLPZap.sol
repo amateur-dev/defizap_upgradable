@@ -32,7 +32,7 @@ import "../../../node_modules/@openzeppelin/upgrades/contracts/Initializable.sol
 import "../../../node_modules/@openzeppelin/contracts-ethereum-package/contracts/math/SafeMath.sol";
 import "../../../node_modules/@openzeppelin/contracts-ethereum-package/contracts/token/ERC20/IERC20.sol";
 
-interface LLP_ERC20Token_General {
+interface LLP_ERC20Token_General_wBTCInhertiance {
     function LetsInvest(address payable _towhomtoIssueAddress, uint _fulcrumPortionAllocation, address _InvesteeTokenAddress, address _fulcrumAddress, address _ERC20forFulcrum) external payable returns(uint); 
 }
 
@@ -45,7 +45,7 @@ contract wBTC_dlWBTC2x_LLPZap is Initializable {
     // - THESE MUST ALWAYS STAY IN THE SAME LAYOUT
     bool private stopped;
     address payable public owner;
-    LLP_ERC20Token_General public LLP_ERC20Token_GeneralAddress;
+    LLP_ERC20Token_General_wBTCInhertiance public LLP_ERC20Token_GeneralAddress;
     address public wBTCAddress;
     address public dLWBTC2xFulCrumAddress;
 
@@ -68,14 +68,14 @@ contract wBTC_dlWBTC2x_LLPZap is Initializable {
     initializer public {
         stopped = false;
         owner = msg.sender;
-        LLP_ERC20Token_GeneralAddress = LLP_ERC20Token_General(_LLP_ERC20Token_GeneralAddress);
+        LLP_ERC20Token_GeneralAddress = LLP_ERC20Token_General_wBTCInhertiance(_LLP_ERC20Token_GeneralAddress);
         wBTCAddress = _wBTCAddress;
         dLWBTC2xFulCrumAddress = _dLWBTC2xFulCrumAddress;
     }
 
     // this function should be called should we ever want to change the underlying LLP_GeneralAddress Contract address
     function set_LLP_ERC20Token_GeneralAddress(address _new_LLP_ERC20Token_GeneralAddress) public onlyOwner {
-        LLP_ERC20Token_GeneralAddress = LLP_ERC20Token_General (_new_LLP_ERC20Token_GeneralAddress);
+        LLP_ERC20Token_GeneralAddress = LLP_ERC20Token_General_wBTCInhertiance (_new_LLP_ERC20Token_GeneralAddress);
     }
 
     // this function should be called should we ever want to change the underlying wBTC Contract address

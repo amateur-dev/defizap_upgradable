@@ -25,7 +25,7 @@
  *
  * See https://docs.zeppelinos.org/docs/writing_contracts.html for more info.
 */
-
+// solium-disable linebreak-style
 pragma solidity ^0.5.0;
 
 import "../../../node_modules/@openzeppelin/upgrades/contracts/Initializable.sol";
