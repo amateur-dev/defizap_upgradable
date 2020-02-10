@@ -206,7 +206,7 @@ contract UniSwapAddLiquityV3_General is Initializable, ReentrancyGuard {
             msg.value,
             LiquidityTokens
         );
-        return UniSwapExchangeContractAddress.balanceOf(address(this));
+        return LiquidityTokens;
     }
 
     function getMaxTokens(
