@@ -4,7 +4,7 @@
   "source": "// Copyright (C) 2019, 2020 dipeshsukhani, nodarjonashi, toshsharma, suhailg\n\n// This program is free software: you can redistribute it and/or modify\n// it under the terms of the GNU Affero General Public License as published by\n// the Free Software Foundation, either version 2 of the License, or\n// (at your option) any later version.\n//\n// This program is distributed in the hope that it will be useful,\n// but WITHOUT ANY WARRANTY; without even the implied warranty of\n// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the\n// GNU Affero General Public License for more details.\n//\n// Visit <https://www.gnu.org/licenses/>for a copy of the GNU Affero General Public License\n\n/**\n * WARNING: This is an upgradable contract. Be careful not to disrupt\n * the existing storage layout when making upgrades to the contract. In particular,\n * existing fields should not be removed and should not have their types changed.\n * The order of field declarations must not be changed, and new fields must be added\n * below all existing declarations.\n *\n * The base contracts and the order in which they are declared must not be changed.\n * New fields must not be added to base contracts (unless the base contract has\n * reserved placeholder fields for this purpose).\n *\n * See https://docs.zeppelinos.org/docs/writing_contracts.html for more info.\n*/\n\npragma solidity ^0.5.0;\n\n\nimport \"../../../node_modules/@openzeppelin/upgrades/contracts/Initializable.sol\";\nimport \"../../../node_modules/@openzeppelin/contracts-ethereum-package/contracts/math/SafeMath.sol\";\nimport \"../../../node_modules/@openzeppelin/contracts-ethereum-package/contracts/token/ERC20/IERC20.sol\";\n\n\ninterface IKyberNetworkProxy {\n    function getExpectedRate(IERC20 src, IERC20 dest, uint srcQty) external view returns (uint expectedRate, uint slippageRate);\n    function trade(IERC20 src, uint srcAmount, IERC20 dest, address destAddress, uint maxDestAmount, uint minConversionRate, address walletId) external payable returns (uint);\n}\n\ninterface IuniswapFactory {\n    function getExchange(address token) external view returns (address exchange);\n}\n\ninterface IuniswapExchange {\n    function getEthToTokenInputPrice(uint256 eth_sold) external view returns (uint256 tokens_bought);\n    function ethToTokenSwapInput(uint256 min_tokens, uint256 deadline) external payable returns (uint256  tokens_bought);\n    function balanceOf(address _owner) external view returns (uint256);\n    function transfer(address _to, uint256 _value) external returns (bool);\n    function addLiquidity(uint256 min_liquidity, uint256 max_tokens, uint256 deadline) external payable returns (uint256);\n}\n\n\ncontract KyberInterace is Initializable {\n    using SafeMath for uint;\n    \n    // state variables\n    // - THESE MUST ALWAYS STAY IN THE SAME LAYOUT\n    bool private stopped = false;\n    address payable public owner;\n    IKyberNetworkProxy public kyberNetworkProxyContract;\n    address private _wallet;\n    IuniswapFactory public UniSwapFactoryAddress;\n\n        \n    // events\n    event TokensReceived(uint, uint);\n    \n    // circuit breaker modifiers\n    modifier stopInEmergency {if (!stopped) _;}\n    modifier onlyInEmergency {if (stopped) _;}\n    modifier onlyOwner() {\n        require(isOwner(), \"you are not authorised to call this function\");\n        _;\n    }\n\n    function initialize(address _walletAddress) initializer public {\n        _wallet = _walletAddress;\n        owner = msg.sender;\n        kyberNetworkProxyContract = IKyberNetworkProxy(0x818E6FECD516Ecc3849DAf6845e3EC868087B755);\n    }\n\n    // for setting the wallet address which has been registered with Kyber\n    function set_wallet (address _new_wallet) public onlyOwner {\n        _wallet = _new_wallet;\n    }\n\n    // for getting the wallet address which has been registered with Kyber\n    function get_wallet() public view onlyOwner returns (address) {\n        return _wallet;\n    }\n    \n    // this function should be called should we ever want to change the kyberNetworkProxyContract address\n    function set_kyberNetworkProxyContract(IKyberNetworkProxy _kyberNetworkProxyContract) onlyOwner public {\n        kyberNetworkProxyContract = _kyberNetworkProxyContract;\n    }\n    \n     \n    function swapTokentoToken(IERC20 _srcTokenAddressIERC20, IERC20 _dstTokenAddress, uint _slippageValue, address _toWhomToIssue) public payable stopInEmergency returns (uint) {\n        require(_wallet != address(0), \"internal error, contact owner\");\n        require(_slippageValue < 100 && _slippageValue >= 0, \"slippage value absurd\");\n        // coversion of ETH to the ERC20 Token\n        // IuniswapExchange UniSwapExchangeContractAddress = IuniswapExchange(UniSwapFactoryAddress.getExchange(address(_dstTokenAddress)));\n        // uint min_Tokens = SafeMath.div(SafeMath.mul(UniSwapExchangeContractAddress.getEthToTokenInputPrice(msg.value),95),100);\n        // uint deadLineToConvert = SafeMath.add(now,1800);\n        // UniSwapExchangeContractAddress.ethToTokenSwapInput.value(msg.value)(min_Tokens,deadLineToConvert);\n        // uint ERC20TokenHoldings = _dstTokenAddress.balanceOf(address(this));\n        // _dstTokenAddress.transfer(_toWhomToIssue,ERC20TokenHoldings);\n        // require (ERC20TokenHoldings > 0, \"the conversion did not happen as planned\");\n        // return ERC20TokenHoldings;\n\n        uint minConversionRate;\n        uint slippageRate;\n        (minConversionRate,slippageRate) = kyberNetworkProxyContract.getExpectedRate(_srcTokenAddressIERC20, _dstTokenAddress, msg.value);\n        uint realisedValue = SafeMath.sub(100,_slippageValue);\n        uint destAmount = kyberNetworkProxyContract.trade.value(msg.value)(_srcTokenAddressIERC20, msg.value, _dstTokenAddress, _toWhomToIssue, 2**255, (SafeMath.div(SafeMath.mul(minConversionRate,realisedValue),100)), _wallet);\n        return destAmount;\n    }\n\n\n    \n    \n    // fx, in case something goes wrong {hint! learnt from experience}\n    function inCaseTokengetsStuck(IERC20 _TokenAddress) onlyOwner public {\n        uint qty = _TokenAddress.balanceOf(address(this));\n        _TokenAddress.transfer(owner, qty);\n    }\n    \n    \n    // - fallback function let you / anyone send ETH to this wallet without the need to call any function\n    function() external payable {\n        revert(\"not allowed to send ETH to this address\");\n    }\n    \n\n    // - to Pause the contract\n    function toggleContractActive() onlyOwner public {\n        stopped = !stopped;\n    }\n    \n    // - to withdraw any ETH balance sitting in the contract\n    function withdraw() onlyOwner public{\n        owner.transfer(address(this).balance);\n    }\n    \n    function destruct() onlyOwner public{\n        selfdestruct(owner);\n    }\n\n    /**\n     * @return true if `msg.sender` is the owner of the contract.\n     */\n    function isOwner() public view returns (bool) {\n        return msg.sender == owner;\n    }\n\n    /**\n     * @dev Transfers ownership of the contract to a new account (`newOwner`).\n     * Can only be called by the current owner.\n     */\n    function transferOwnership(address payable newOwner) public onlyOwner {\n        _transferOwnership(newOwner);\n    }\n\n    /**\n     * @dev Transfers ownership of the contract to a new account (`newOwner`).\n     */\n    function _transferOwnership(address payable newOwner) internal {\n        require(newOwner != address(0), \"Ownable: new owner is the zero address\");\n        owner = newOwner;\n    }\n\n    // after the upgrade\n    function set_UniswapFactorAddress() public onlyOwner {\n        UniSwapFactoryAddress = IuniswapFactory(0xc0a47dFe034B400B47bDaD5FecDa2621de6c4d95);\n    }\n     \n\n}\n",
   "sourcePath": "contracts/UpdatedZaps/Done/KyberInterfaceV3_Upgradable.sol",
   "sourceMap": "2650:4956:6:-;;;2827:5;2804:28;;;;;;;;;;;;;;;;;;;;2650:4956;8:9:-1;5:2;;;30:1;27;20:12;5:2;2650:4956:6;;;;;;;",
-  "deployedSourceMap": "2650:4956:6:-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;6267:49;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;7444:153;;8:9:-1;5:2;;;30:1;27;20:12;5:2;7444:153:6;;;:::i;:::-;;6365:84;;8:9:-1;5:2;;;30:1;27;20:12;5:2;6365:84:6;;;:::i;:::-;;3815:93;;8:9:-1;5:2;;;30:1;27;20:12;5:2;3815:93:6;;;:::i;:::-;;;;;;;;;;;;;;;;;;;;;;;6620:72;;8:9:-1;5:2;;;30:1;27;20:12;5:2;6620:72:6;;;:::i;:::-;;6520:90;;8:9:-1;5:2;;;30:1;27;20:12;5:2;6520:90:6;;;:::i;:::-;;3637:97;;8:9:-1;5:2;;;30:1;27;20:12;5:2;3637:97:6;;;;;;13:2:-1;8:3;5:11;2:2;;;29:1;26;19:12;2:2;3637:97:6;;;;;;;;;;;;;;;;;;;:::i;:::-;;2958:44;;8:9:-1;5:2;;;30:1;27;20:12;5:2;2958:44:6;;;:::i;:::-;;;;;;;;;;;;;;;;;;;;;;;5929:179;;8:9:-1;5:2;;;30:1;27;20:12;5:2;5929:179:6;;;;;;13:2:-1;8:3;5:11;2:2;;;29:1;26;19:12;2:2;5929:179:6;;;;;;;;;;;;;;;;;;;:::i;:::-;;2872:51;;8:9:-1;5:2;;;30:1;27;20:12;5:2;2872:51:6;;;:::i;:::-;;;;;;;;;;;;;;;;;;;;;;;4214:1627;;;;;;13:3:-1;8;5:12;2:2;;;30:1;27;20:12;2:2;4214:1627:6;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;:::i;:::-;;;;;;;;;;;;;;;;;;;4024:174;;8:9:-1;5:2;;;30:1;27;20:12;5:2;4024:174:6;;;;;;13:2:-1;8:3;5:11;2:2;;;29:1;26;19:12;2:2;4024:174:6;;;;;;;;;;;;;;;;;;;:::i;:::-;;2838:28;;8:9:-1;5:2;;;30:1;27;20:12;5:2;2838:28:6;;;:::i;:::-;;;;;;;;;;;;;;;;;;;;;;;6780:89;;8:9:-1;5:2;;;30:1;27;20:12;5:2;6780:89:6;;;:::i;:::-;;;;;;;;;;;;;;;;;;;;;;;3324:232;;8:9:-1;5:2;;;30:1;27;20:12;5:2;3324:232:6;;;;;;13:2:-1;8:3;5:11;2:2;;;29:1;26;19:12;2:2;3324:232:6;;;;;;;;;;;;;;;;;;;:::i;:::-;;7018:115;;8:9:-1;5:2;;;30:1;27;20:12;5:2;7018:115:6;;;;;;13:2:-1;8:3;5:11;2:2;;;29:1;26;19:12;2:2;7018:115:6;;;;;;;;;;;;;;;;;;;:::i;:::-;;7444:153;3242:9;:7;:9::i;:::-;3234:66;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;7547:42;7507:21;;:83;;;;;;;;;;;;;;;;;;7444:153::o;6365:84::-;3242:9;:7;:9::i;:::-;3234:66;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;6435:7;;;;;;;;;;;6434:8;6424:7;;:18;;;;;;;;;;;;;;;;;;6365:84::o;3815:93::-;3868:7;3242:9;:7;:9::i;:::-;3234:66;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;3894:7;;;;;;;;;;;3887:14;;3815:93;:::o;6620:72::-;3242:9;:7;:9::i;:::-;3234:66;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;6679:5;;;;;;;;;;;6666:19;;;6520:90;3242:9;:7;:9::i;:::-;3234:66;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;6566:5;;;;;;;;;;;:14;;:37;6589:4;6581:21;;;6566:37;;;;;;;;;;;;;;;;;;;;;;;;8:9:-1;5:2;;;45:16;42:1;39;24:38;77:16;74:1;67:27;5:2;6566:37:6;6520:90::o;3637:97::-;3242:9;:7;:9::i;:::-;3234:66;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;3716:11;3706:7;;:21;;;;;;;;;;;;;;;;;;3637:97;:::o;2958:44::-;;;;;;;;;;;;;:::o;5929:179::-;3242:9;:7;:9::i;:::-;3234:66;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;6008:8;6019:13;:23;;;6051:4;6019:38;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;8:9:-1;5:2;;;30:1;27;20:12;5:2;6019:38:6;;;;8:9:-1;5:2;;;45:16;42:1;39;24:38;77:16;74:1;67:27;5:2;6019:38:6;;;;;;;13:2:-1;8:3;5:11;2:2;;;29:1;26;19:12;2:2;6019:38:6;;;;;;;;;;;;;;;;6008:49;;6067:13;:22;;;6090:5;;;;;;;;;;;6097:3;6067:34;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;8:9:-1;5:2;;;30:1;27;20:12;5:2;6067:34:6;;;;8:9:-1;5:2;;;45:16;42:1;39;24:38;77:16;74:1;67:27;5:2;6067:34:6;;;;;;;13:2:-1;8:3;5:11;2:2;;;29:1;26;19:12;2:2;6067:34:6;;;;;;;;;;;;;;;;;3310:1;5929:179;:::o;2872:51::-;;;;;;;;;;;;;:::o;4214:1627::-;4381:4;3139:7;;;;;;;;;;;3134:15;;4424:1;4405:21;;:7;;;;;;;;;;;:21;;;;4397:63;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;4495:3;4478:14;:20;:43;;;;;4520:1;4502:14;:19;;4478:43;4470:77;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;5327:22;5359:17;5421:25;;;;;;;;;;;:41;;;5463:22;5487:16;5505:9;5421:94;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;8:9:-1;5:2;;;30:1;27;20:12;5:2;5421:94:6;;;;8:9:-1;5:2;;;45:16;42:1;39;24:38;77:16;74:1;67:27;5:2;5421:94:6;;;;;;;13:2:-1;8:3;5:11;2:2;;;29:1;26;19:12;2:2;5421:94:6;;;;;;;;;;;;;;;;;;;;;;;;;5386:129;;;;;;;;5525:18;5546:32;5559:3;5563:14;5546:12;:32::i;:::-;5525:53;;5588:15;5606:25;;;;;;;;;;;:31;;;5644:9;5655:22;5679:9;5690:16;5708:14;5724:6;5733:63;5746:45;5759:17;5777:13;5746:12;:45::i;:::-;5792:3;5733:12;:63::i;:::-;5799:7;;;;;;;;;;;5606:201;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;8:9:-1;5:2;;;30:1;27;20:12;5:2;5606:201:6;;;;8:9:-1;5:2;;;45:16;42:1;39;24:38;77:16;74:1;67:27;5:2;5606:201:6;;;;;;;;13:2:-1;8:3;5:11;2:2;;;29:1;26;19:12;2:2;5606:201:6;;;;;;;;;;;;;;;;5588:219;;5824:10;5817:17;;;;;;3134:15;4214:1627;;;;;;:::o;4024:174::-;3242:9;:7;:9::i;:::-;3234:66;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;4165:26;4137:25;;:54;;;;;;;;;;;;;;;;;;4024:174;:::o;2838:28::-;;;;;;;;;;;;;:::o;6780:89::-;6820:4;6857:5;;;;;;;;;;;6843:19;;:10;:19;;;6836:26;;6780:89;:::o;3324:232::-;1024:12:23;;;;;;;;;;;:31;;;;1040:15;:13;:15::i;:::-;1024:31;:47;;;;1060:11;;;;;;;;;;;1059:12;1024:47;1016:106;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;1129:19;1152:12;;;;;;;;;;;1151:13;1129:35;;1174:14;1170:80;;;1213:4;1198:12;;:19;;;;;;;;;;;;;;;;;;1239:4;1225:11;;:18;;;;;;;;;;;;;;;;;;1170:80;3407:14:6;3397:7;;:24;;;;;;;;;;;;;;;;;;3439:10;3431:5;;:18;;;;;;;;;;;;;;;;;;3506:42;3459:25;;:90;;;;;;;;;;;;;;;;;;1268:14:23;1264:55;;;1307:5;1292:12;;:20;;;;;;;;;;;;;;;;;;1264:55;3324:232:6;;:::o;7018:115::-;3242:9;:7;:9::i;:::-;3234:66;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;7098:28;7117:8;7098:18;:28::i;:::-;7018:115;:::o;1274:134:20:-;1332:7;1358:43;1362:1;1365;1358:43;;;;;;;;;;;;;;;;;:3;:43::i;:::-;1351:50;;1274:134;;;;:::o;2159:459::-;2217:7;2463:1;2458;:6;2454:45;;;2487:1;2480:8;;;;2454:45;2509:9;2525:1;2521;:5;2509:17;;2553:1;2548;2544;:5;;;;;;:10;2536:56;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;2610:1;2603:8;;;2159:459;;;;;:::o;3073:130::-;3131:7;3157:39;3161:1;3164;3157:39;;;;;;;;;;;;;;;;;:3;:39::i;:::-;3150:46;;3073:130;;;;:::o;1409:467:23:-;1456:4;1797:10;1842:7;1830:20;1824:26;;1870:1;1864:2;:7;1857:14;;;1409:467;:::o;7234:179:6:-;7335:1;7315:22;;:8;:22;;;;7307:73;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;7398:8;7390:5;;:16;;;;;;;;;;;;;;;;;;7234:179;:::o;1732:187:20:-;1818:7;1850:1;1845;:6;;1853:12;1837:29;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;23:1:-1;8:100;33:3;30:1;27:10;8:100;;;99:1;94:3;90:11;84:18;80:1;75:3;71:11;64:39;52:2;49:1;45:10;40:15;;8:100;;;12:14;1837:29:20;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;1876:9;1892:1;1888;:5;1876:17;;1911:1;1904:8;;;1732:187;;;;;:::o;3718:338::-;3804:7;3901:1;3897;:5;3904:12;3889:28;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;23:1:-1;8:100;33:3;30:1;27:10;8:100;;;99:1;94:3;90:11;84:18;80:1;75:3;71:11;64:39;52:2;49:1;45:10;40:15;;8:100;;;12:14;3889:28:20;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;3927:9;3943:1;3939;:5;;;;;;3927:17;;4048:1;4041:8;;;3718:338;;;;;:::o",
+  "deployedSourceMap": "2650:4956:6:-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;6267:49;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;7444:153;;8:9:-1;5:2;;;30:1;27;20:12;5:2;7444:153:6;;;:::i;:::-;;6365:84;;8:9:-1;5:2;;;30:1;27;20:12;5:2;6365:84:6;;;:::i;:::-;;3815:93;;8:9:-1;5:2;;;30:1;27;20:12;5:2;3815:93:6;;;:::i;:::-;;;;;;;;;;;;;;;;;;;;;;;6620:72;;8:9:-1;5:2;;;30:1;27;20:12;5:2;6620:72:6;;;:::i;:::-;;6520:90;;8:9:-1;5:2;;;30:1;27;20:12;5:2;6520:90:6;;;:::i;:::-;;3637:97;;8:9:-1;5:2;;;30:1;27;20:12;5:2;3637:97:6;;;;;;13:2:-1;8:3;5:11;2:2;;;29:1;26;19:12;2:2;3637:97:6;;;;;;;;;;;;;;;;;;;:::i;:::-;;2958:44;;8:9:-1;5:2;;;30:1;27;20:12;5:2;2958:44:6;;;:::i;:::-;;;;;;;;;;;;;;;;;;;;;;;5929:179;;8:9:-1;5:2;;;30:1;27;20:12;5:2;5929:179:6;;;;;;13:2:-1;8:3;5:11;2:2;;;29:1;26;19:12;2:2;5929:179:6;;;;;;;;;;;;;;;;;;;:::i;:::-;;2872:51;;8:9:-1;5:2;;;30:1;27;20:12;5:2;2872:51:6;;;:::i;:::-;;;;;;;;;;;;;;;;;;;;;;;4214:1627;;;;;;13:3:-1;8;5:12;2:2;;;30:1;27;20:12;2:2;4214:1627:6;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;:::i;:::-;;;;;;;;;;;;;;;;;;;4024:174;;8:9:-1;5:2;;;30:1;27;20:12;5:2;4024:174:6;;;;;;13:2:-1;8:3;5:11;2:2;;;29:1;26;19:12;2:2;4024:174:6;;;;;;;;;;;;;;;;;;;:::i;:::-;;2838:28;;8:9:-1;5:2;;;30:1;27;20:12;5:2;2838:28:6;;;:::i;:::-;;;;;;;;;;;;;;;;;;;;;;;6780:89;;8:9:-1;5:2;;;30:1;27;20:12;5:2;6780:89:6;;;:::i;:::-;;;;;;;;;;;;;;;;;;;;;;;3324:232;;8:9:-1;5:2;;;30:1;27;20:12;5:2;3324:232:6;;;;;;13:2:-1;8:3;5:11;2:2;;;29:1;26;19:12;2:2;3324:232:6;;;;;;;;;;;;;;;;;;;:::i;:::-;;7018:115;;8:9:-1;5:2;;;30:1;27;20:12;5:2;7018:115:6;;;;;;13:2:-1;8:3;5:11;2:2;;;29:1;26;19:12;2:2;7018:115:6;;;;;;;;;;;;;;;;;;;:::i;:::-;;7444:153;3242:9;:7;:9::i;:::-;3234:66;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;7547:42;7507:21;;:83;;;;;;;;;;;;;;;;;;7444:153::o;6365:84::-;3242:9;:7;:9::i;:::-;3234:66;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;6435:7;;;;;;;;;;;6434:8;6424:7;;:18;;;;;;;;;;;;;;;;;;6365:84::o;3815:93::-;3868:7;3242:9;:7;:9::i;:::-;3234:66;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;3894:7;;;;;;;;;;;3887:14;;3815:93;:::o;6620:72::-;3242:9;:7;:9::i;:::-;3234:66;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;6679:5;;;;;;;;;;;6666:19;;;6520:90;3242:9;:7;:9::i;:::-;3234:66;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;6566:5;;;;;;;;;;;:14;;:37;6589:4;6581:21;;;6566:37;;;;;;;;;;;;;;;;;;;;;;;;8:9:-1;5:2;;;45:16;42:1;39;24:38;77:16;74:1;67:27;5:2;6566:37:6;6520:90::o;3637:97::-;3242:9;:7;:9::i;:::-;3234:66;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;3716:11;3706:7;;:21;;;;;;;;;;;;;;;;;;3637:97;:::o;2958:44::-;;;;;;;;;;;;;:::o;5929:179::-;3242:9;:7;:9::i;:::-;3234:66;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;6008:8;6019:13;:23;;;6051:4;6019:38;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;8:9:-1;5:2;;;30:1;27;20:12;5:2;6019:38:6;;;;8:9:-1;5:2;;;45:16;42:1;39;24:38;77:16;74:1;67:27;5:2;6019:38:6;;;;;;;13:2:-1;8:3;5:11;2:2;;;29:1;26;19:12;2:2;6019:38:6;;;;;;;;;;;;;;;;6008:49;;6067:13;:22;;;6090:5;;;;;;;;;;;6097:3;6067:34;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;8:9:-1;5:2;;;30:1;27;20:12;5:2;6067:34:6;;;;8:9:-1;5:2;;;45:16;42:1;39;24:38;77:16;74:1;67:27;5:2;6067:34:6;;;;;;;13:2:-1;8:3;5:11;2:2;;;29:1;26;19:12;2:2;6067:34:6;;;;;;;;;;;;;;;;;3310:1;5929:179;:::o;2872:51::-;;;;;;;;;;;;;:::o;4214:1627::-;4381:4;3139:7;;;;;;;;;;;3134:15;;4424:1;4405:21;;:7;;;;;;;;;;;:21;;;;4397:63;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;4495:3;4478:14;:20;:43;;;;;4520:1;4502:14;:19;;4478:43;4470:77;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;5327:22;5359:17;5421:25;;;;;;;;;;;:41;;;5463:22;5487:16;5505:9;5421:94;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;8:9:-1;5:2;;;30:1;27;20:12;5:2;5421:94:6;;;;8:9:-1;5:2;;;45:16;42:1;39;24:38;77:16;74:1;67:27;5:2;5421:94:6;;;;;;;13:2:-1;8:3;5:11;2:2;;;29:1;26;19:12;2:2;5421:94:6;;;;;;;;;;;;;;;;;;;;;;;;;5386:129;;;;;;;;5525:18;5546:32;5559:3;5563:14;5546:12;:32::i;:::-;5525:53;;5588:15;5606:25;;;;;;;;;;;:31;;;5644:9;5655:22;5679:9;5690:16;5708:14;5724:6;5733:63;5746:45;5759:17;5777:13;5746:12;:45::i;:::-;5792:3;5733:12;:63::i;:::-;5799:7;;;;;;;;;;;5606:201;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;8:9:-1;5:2;;;30:1;27;20:12;5:2;5606:201:6;;;;8:9:-1;5:2;;;45:16;42:1;39;24:38;77:16;74:1;67:27;5:2;5606:201:6;;;;;;;;13:2:-1;8:3;5:11;2:2;;;29:1;26;19:12;2:2;5606:201:6;;;;;;;;;;;;;;;;5588:219;;5824:10;5817:17;;;;;;3134:15;4214:1627;;;;;;:::o;4024:174::-;3242:9;:7;:9::i;:::-;3234:66;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;4165:26;4137:25;;:54;;;;;;;;;;;;;;;;;;4024:174;:::o;2838:28::-;;;;;;;;;;;;;:::o;6780:89::-;6820:4;6857:5;;;;;;;;;;;6843:19;;:10;:19;;;6836:26;;6780:89;:::o;3324:232::-;1024:12:24;;;;;;;;;;;:31;;;;1040:15;:13;:15::i;:::-;1024:31;:47;;;;1060:11;;;;;;;;;;;1059:12;1024:47;1016:106;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;1129:19;1152:12;;;;;;;;;;;1151:13;1129:35;;1174:14;1170:80;;;1213:4;1198:12;;:19;;;;;;;;;;;;;;;;;;1239:4;1225:11;;:18;;;;;;;;;;;;;;;;;;1170:80;3407:14:6;3397:7;;:24;;;;;;;;;;;;;;;;;;3439:10;3431:5;;:18;;;;;;;;;;;;;;;;;;3506:42;3459:25;;:90;;;;;;;;;;;;;;;;;;1268:14:24;1264:55;;;1307:5;1292:12;;:20;;;;;;;;;;;;;;;;;;1264:55;3324:232:6;;:::o;7018:115::-;3242:9;:7;:9::i;:::-;3234:66;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;7098:28;7117:8;7098:18;:28::i;:::-;7018:115;:::o;1274:134:21:-;1332:7;1358:43;1362:1;1365;1358:43;;;;;;;;;;;;;;;;;:3;:43::i;:::-;1351:50;;1274:134;;;;:::o;2159:459::-;2217:7;2463:1;2458;:6;2454:45;;;2487:1;2480:8;;;;2454:45;2509:9;2525:1;2521;:5;2509:17;;2553:1;2548;2544;:5;;;;;;:10;2536:56;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;2610:1;2603:8;;;2159:459;;;;;:::o;3073:130::-;3131:7;3157:39;3161:1;3164;3157:39;;;;;;;;;;;;;;;;;:3;:39::i;:::-;3150:46;;3073:130;;;;:::o;1409:467:24:-;1456:4;1797:10;1842:7;1830:20;1824:26;;1870:1;1864:2;:7;1857:14;;;1409:467;:::o;7234:179:6:-;7335:1;7315:22;;:8;:22;;;;7307:73;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;7398:8;7390:5;;:16;;;;;;;;;;;;;;;;;;7234:179;:::o;1732:187:21:-;1818:7;1850:1;1845;:6;;1853:12;1837:29;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;23:1:-1;8:100;33:3;30:1;27:10;8:100;;;99:1;94:3;90:11;84:18;80:1;75:3;71:11;64:39;52:2;49:1;45:10;40:15;;8:100;;;12:14;1837:29:21;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;1876:9;1892:1;1888;:5;1876:17;;1911:1;1904:8;;;1732:187;;;;;:::o;3718:338::-;3804:7;3901:1;3897;:5;3904:12;3889:28;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;23:1:-1;8:100;33:3;30:1;27:10;8:100;;;99:1;94:3;90:11;84:18;80:1;75:3;71:11;64:39;52:2;49:1;45:10;40:15;;8:100;;;12:14;3889:28:21;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;3927:9;3943:1;3939;:5;;;;;;3927:17;;4048:1;4041:8;;;3718:338;;;;;:::o",
   "abi": [
     {
       "anonymous": false,
@@ -289,7 +289,7 @@
         "id": 1950,
         "nodeType": "ImportDirective",
         "scope": 2356,
-        "sourceUnit": 7121,
+        "sourceUnit": 7389,
         "src": "1378:82:6",
         "symbolAliases": [],
         "unitAlias": ""
@@ -300,7 +300,7 @@
         "id": 1951,
         "nodeType": "ImportDirective",
         "scope": 2356,
-        "sourceUnit": 6948,
+        "sourceUnit": 7216,
         "src": "1461:100:6",
         "symbolAliases": [],
         "unitAlias": ""
@@ -311,7 +311,7 @@
         "id": 1952,
         "nodeType": "ImportDirective",
         "scope": 2356,
-        "sourceUnit": 7017,
+        "sourceUnit": 7285,
         "src": "1562:105:6",
         "symbolAliases": [],
         "unitAlias": ""
@@ -352,7 +352,7 @@
                   "stateVariable": false,
                   "storageLocation": "default",
                   "typeDescriptions": {
-                    "typeIdentifier": "t_contract$_IERC20_$7016",
+                    "typeIdentifier": "t_contract$_IERC20_$7284",
                     "typeString": "contract IERC20"
                   },
                   "typeName": {
@@ -360,10 +360,10 @@
                     "id": 1953,
                     "name": "IERC20",
                     "nodeType": "UserDefinedTypeName",
-                    "referencedDeclaration": 7016,
+                    "referencedDeclaration": 7284,
                     "src": "1730:6:6",
                     "typeDescriptions": {
-                      "typeIdentifier": "t_contract$_IERC20_$7016",
+                      "typeIdentifier": "t_contract$_IERC20_$7284",
                       "typeString": "contract IERC20"
                     }
                   },
@@ -380,7 +380,7 @@
                   "stateVariable": false,
                   "storageLocation": "default",
                   "typeDescriptions": {
-                    "typeIdentifier": "t_contract$_IERC20_$7016",
+                    "typeIdentifier": "t_contract$_IERC20_$7284",
                     "typeString": "contract IERC20"
                   },
                   "typeName": {
@@ -388,10 +388,10 @@
                     "id": 1955,
                     "name": "IERC20",
                     "nodeType": "UserDefinedTypeName",
-                    "referencedDeclaration": 7016,
+                    "referencedDeclaration": 7284,
                     "src": "1742:6:6",
                     "typeDescriptions": {
-                      "typeIdentifier": "t_contract$_IERC20_$7016",
+                      "typeIdentifier": "t_contract$_IERC20_$7284",
                       "typeString": "contract IERC20"
                     }
                   },
@@ -515,7 +515,7 @@
                   "stateVariable": false,
                   "storageLocation": "default",
                   "typeDescriptions": {
-                    "typeIdentifier": "t_contract$_IERC20_$7016",
+                    "typeIdentifier": "t_contract$_IERC20_$7284",
                     "typeString": "contract IERC20"
                   },
                   "typeName": {
@@ -523,10 +523,10 @@
                     "id": 1966,
                     "name": "IERC20",
                     "nodeType": "UserDefinedTypeName",
-                    "referencedDeclaration": 7016,
+                    "referencedDeclaration": 7284,
                     "src": "1849:6:6",
                     "typeDescriptions": {
-                      "typeIdentifier": "t_contract$_IERC20_$7016",
+                      "typeIdentifier": "t_contract$_IERC20_$7284",
                       "typeString": "contract IERC20"
                     }
                   },
@@ -569,7 +569,7 @@
                   "stateVariable": false,
                   "storageLocation": "default",
                   "typeDescriptions": {
-                    "typeIdentifier": "t_contract$_IERC20_$7016",
+                    "typeIdentifier": "t_contract$_IERC20_$7284",
                     "typeString": "contract IERC20"
                   },
                   "typeName": {
@@ -577,10 +577,10 @@
                     "id": 1970,
                     "name": "IERC20",
                     "nodeType": "UserDefinedTypeName",
-                    "referencedDeclaration": 7016,
+                    "referencedDeclaration": 7284,
                     "src": "1877:6:6",
                     "typeDescriptions": {
-                      "typeIdentifier": "t_contract$_IERC20_$7016",
+                      "typeIdentifier": "t_contract$_IERC20_$7284",
                       "typeString": "contract IERC20"
                     }
                   },
@@ -1376,10 +1376,10 @@
               "id": 2038,
               "name": "Initializable",
               "nodeType": "UserDefinedTypeName",
-              "referencedDeclaration": 7120,
+              "referencedDeclaration": 7388,
               "src": "2676:13:6",
               "typeDescriptions": {
-                "typeIdentifier": "t_contract$_Initializable_$7120",
+                "typeIdentifier": "t_contract$_Initializable_$7388",
                 "typeString": "contract Initializable"
               }
             },
@@ -1389,7 +1389,7 @@
           }
         ],
         "contractDependencies": [
-          7120
+          7388
         ],
         "contractKind": "contract",
         "documentation": null,
@@ -1397,7 +1397,7 @@
         "id": 2355,
         "linearizedBaseContracts": [
           2355,
-          7120
+          7388
         ],
         "name": "KyberInterace",
         "nodeType": "ContractDefinition",
@@ -1409,10 +1409,10 @@
               "id": 2040,
               "name": "SafeMath",
               "nodeType": "UserDefinedTypeName",
-              "referencedDeclaration": 6947,
+              "referencedDeclaration": 7215,
               "src": "2702:8:6",
               "typeDescriptions": {
-                "typeIdentifier": "t_contract$_SafeMath_$6947",
+                "typeIdentifier": "t_contract$_SafeMath_$7215",
                 "typeString": "library SafeMath"
               }
             },
@@ -1831,10 +1831,10 @@
                       "name": "require",
                       "nodeType": "Identifier",
                       "overloadedDeclarations": [
-                        7138,
-                        7139
+                        7406,
+                        7407
                       ],
-                      "referencedDeclaration": 7139,
+                      "referencedDeclaration": 7407,
                       "src": "3234:7:6",
                       "typeDescriptions": {
                         "typeIdentifier": "t_function_require_pure$_t_bool_$_t_string_memory_ptr_$returns$__$",
@@ -1962,7 +1962,7 @@
                         "name": "msg",
                         "nodeType": "Identifier",
                         "overloadedDeclarations": [],
-                        "referencedDeclaration": 7135,
+                        "referencedDeclaration": 7403,
                         "src": "3439:3:6",
                         "typeDescriptions": {
                           "typeIdentifier": "t_magic_message",
@@ -2096,7 +2096,7 @@
                   "name": "initializer",
                   "nodeType": "Identifier",
                   "overloadedDeclarations": [],
-                  "referencedDeclaration": 7101,
+                  "referencedDeclaration": 7369,
                   "src": "3368:11:6",
                   "typeDescriptions": {
                     "typeIdentifier": "t_modifier$__$",
@@ -2642,10 +2642,10 @@
                       "name": "require",
                       "nodeType": "Identifier",
                       "overloadedDeclarations": [
-                        7138,
-                        7139
+                        7406,
+                        7407
                       ],
-                      "referencedDeclaration": 7139,
+                      "referencedDeclaration": 7407,
                       "src": "4397:7:6",
                       "typeDescriptions": {
                         "typeIdentifier": "t_function_require_pure$_t_bool_$_t_string_memory_ptr_$returns$__$",
@@ -2827,10 +2827,10 @@
                       "name": "require",
                       "nodeType": "Identifier",
                       "overloadedDeclarations": [
-                        7138,
-                        7139
+                        7406,
+                        7407
                       ],
-                      "referencedDeclaration": 7139,
+                      "referencedDeclaration": 7407,
                       "src": "4470:7:6",
                       "typeDescriptions": {
                         "typeIdentifier": "t_function_require_pure$_t_bool_$_t_string_memory_ptr_$returns$__$",
@@ -2994,7 +2994,7 @@
                           "referencedDeclaration": 2141,
                           "src": "5463:22:6",
                           "typeDescriptions": {
-                            "typeIdentifier": "t_contract$_IERC20_$7016",
+                            "typeIdentifier": "t_contract$_IERC20_$7284",
                             "typeString": "contract IERC20"
                           }
                         },
@@ -3007,7 +3007,7 @@
                           "referencedDeclaration": 2143,
                           "src": "5487:16:6",
                           "typeDescriptions": {
-                            "typeIdentifier": "t_contract$_IERC20_$7016",
+                            "typeIdentifier": "t_contract$_IERC20_$7284",
                             "typeString": "contract IERC20"
                           }
                         },
@@ -3019,7 +3019,7 @@
                             "name": "msg",
                             "nodeType": "Identifier",
                             "overloadedDeclarations": [],
-                            "referencedDeclaration": 7135,
+                            "referencedDeclaration": 7403,
                             "src": "5505:3:6",
                             "typeDescriptions": {
                               "typeIdentifier": "t_magic_message",
@@ -3044,11 +3044,11 @@
                       "expression": {
                         "argumentTypes": [
                           {
-                            "typeIdentifier": "t_contract$_IERC20_$7016",
+                            "typeIdentifier": "t_contract$_IERC20_$7284",
                             "typeString": "contract IERC20"
                           },
                           {
-                            "typeIdentifier": "t_contract$_IERC20_$7016",
+                            "typeIdentifier": "t_contract$_IERC20_$7284",
                             "typeString": "contract IERC20"
                           },
                           {
@@ -3079,7 +3079,7 @@
                         "referencedDeclaration": 1965,
                         "src": "5421:41:6",
                         "typeDescriptions": {
-                          "typeIdentifier": "t_function_external_view$_t_contract$_IERC20_$7016_$_t_contract$_IERC20_$7016_$_t_uint256_$returns$_t_uint256_$_t_uint256_$",
+                          "typeIdentifier": "t_function_external_view$_t_contract$_IERC20_$7284_$_t_contract$_IERC20_$7284_$_t_uint256_$returns$_t_uint256_$_t_uint256_$",
                           "typeString": "function (contract IERC20,contract IERC20,uint256) view external returns (uint256,uint256)"
                         }
                       },
@@ -3192,10 +3192,10 @@
                         "name": "SafeMath",
                         "nodeType": "Identifier",
                         "overloadedDeclarations": [],
-                        "referencedDeclaration": 6947,
+                        "referencedDeclaration": 7215,
                         "src": "5546:8:6",
                         "typeDescriptions": {
-                          "typeIdentifier": "t_type$_t_contract$_SafeMath_$6947_$",
+                          "typeIdentifier": "t_type$_t_contract$_SafeMath_$7215_$",
                           "typeString": "type(library SafeMath)"
                         }
                       },
@@ -3206,7 +3206,7 @@
                       "lValueRequested": false,
                       "memberName": "sub",
                       "nodeType": "MemberAccess",
-                      "referencedDeclaration": 6803,
+                      "referencedDeclaration": 7071,
                       "src": "5546:12:6",
                       "typeDescriptions": {
                         "typeIdentifier": "t_function_internal_pure$_t_uint256_$_t_uint256_$returns$_t_uint256_$",
@@ -3275,7 +3275,7 @@
                         "referencedDeclaration": 2141,
                         "src": "5655:22:6",
                         "typeDescriptions": {
-                          "typeIdentifier": "t_contract$_IERC20_$7016",
+                          "typeIdentifier": "t_contract$_IERC20_$7284",
                           "typeString": "contract IERC20"
                         }
                       },
@@ -3287,7 +3287,7 @@
                           "name": "msg",
                           "nodeType": "Identifier",
                           "overloadedDeclarations": [],
-                          "referencedDeclaration": 7135,
+                          "referencedDeclaration": 7403,
                           "src": "5679:3:6",
                           "typeDescriptions": {
                             "typeIdentifier": "t_magic_message",
@@ -3317,7 +3317,7 @@
                         "referencedDeclaration": 2143,
                         "src": "5690:16:6",
                         "typeDescriptions": {
-                          "typeIdentifier": "t_contract$_IERC20_$7016",
+                          "typeIdentifier": "t_contract$_IERC20_$7284",
                           "typeString": "contract IERC20"
                         }
                       },
@@ -3442,10 +3442,10 @@
                                     "name": "SafeMath",
                                     "nodeType": "Identifier",
                                     "overloadedDeclarations": [],
-                                    "referencedDeclaration": 6947,
+                                    "referencedDeclaration": 7215,
                                     "src": "5746:8:6",
                                     "typeDescriptions": {
-                                      "typeIdentifier": "t_type$_t_contract$_SafeMath_$6947_$",
+                                      "typeIdentifier": "t_type$_t_contract$_SafeMath_$7215_$",
                                       "typeString": "type(library SafeMath)"
                                     }
                                   },
@@ -3456,7 +3456,7 @@
                                   "lValueRequested": false,
                                   "memberName": "mul",
                                   "nodeType": "MemberAccess",
-                                  "referencedDeclaration": 6864,
+                                  "referencedDeclaration": 7132,
                                   "src": "5746:12:6",
                                   "typeDescriptions": {
                                     "typeIdentifier": "t_function_internal_pure$_t_uint256_$_t_uint256_$returns$_t_uint256_$",
@@ -3513,10 +3513,10 @@
                                 "name": "SafeMath",
                                 "nodeType": "Identifier",
                                 "overloadedDeclarations": [],
-                                "referencedDeclaration": 6947,
+                                "referencedDeclaration": 7215,
                                 "src": "5733:8:6",
                                 "typeDescriptions": {
-                                  "typeIdentifier": "t_type$_t_contract$_SafeMath_$6947_$",
+                                  "typeIdentifier": "t_type$_t_contract$_SafeMath_$7215_$",
                                   "typeString": "type(library SafeMath)"
                                 }
                               },
@@ -3527,7 +3527,7 @@
                               "lValueRequested": false,
                               "memberName": "div",
                               "nodeType": "MemberAccess",
-                              "referencedDeclaration": 6880,
+                              "referencedDeclaration": 7148,
                               "src": "5733:12:6",
                               "typeDescriptions": {
                                 "typeIdentifier": "t_function_internal_pure$_t_uint256_$_t_uint256_$returns$_t_uint256_$",
@@ -3579,7 +3579,7 @@
                     "expression": {
                       "argumentTypes": [
                         {
-                          "typeIdentifier": "t_contract$_IERC20_$7016",
+                          "typeIdentifier": "t_contract$_IERC20_$7284",
                           "typeString": "contract IERC20"
                         },
                         {
@@ -3587,7 +3587,7 @@
                           "typeString": "uint256"
                         },
                         {
-                          "typeIdentifier": "t_contract$_IERC20_$7016",
+                          "typeIdentifier": "t_contract$_IERC20_$7284",
                           "typeString": "contract IERC20"
                         },
                         {
@@ -3616,7 +3616,7 @@
                             "name": "msg",
                             "nodeType": "Identifier",
                             "overloadedDeclarations": [],
-                            "referencedDeclaration": 7135,
+                            "referencedDeclaration": 7403,
                             "src": "5644:3:6",
                             "typeDescriptions": {
                               "typeIdentifier": "t_magic_message",
@@ -3670,7 +3670,7 @@
                           "referencedDeclaration": 1984,
                           "src": "5606:31:6",
                           "typeDescriptions": {
-                            "typeIdentifier": "t_function_external_payable$_t_contract$_IERC20_$7016_$_t_uint256_$_t_contract$_IERC20_$7016_$_t_address_$_t_uint256_$_t_uint256_$_t_address_$returns$_t_uint256_$",
+                            "typeIdentifier": "t_function_external_payable$_t_contract$_IERC20_$7284_$_t_uint256_$_t_contract$_IERC20_$7284_$_t_address_$_t_uint256_$_t_uint256_$_t_address_$returns$_t_uint256_$",
                             "typeString": "function (contract IERC20,uint256,contract IERC20,address,uint256,uint256,address) payable external returns (uint256)"
                           }
                         },
@@ -3684,7 +3684,7 @@
                         "referencedDeclaration": null,
                         "src": "5606:37:6",
                         "typeDescriptions": {
-                          "typeIdentifier": "t_function_setvalue_pure$_t_uint256_$returns$_t_function_external_payable$_t_contract$_IERC20_$7016_$_t_uint256_$_t_contract$_IERC20_$7016_$_t_address_$_t_uint256_$_t_uint256_$_t_address_$returns$_t_uint256_$value_$",
+                          "typeIdentifier": "t_function_setvalue_pure$_t_uint256_$returns$_t_function_external_payable$_t_contract$_IERC20_$7284_$_t_uint256_$_t_contract$_IERC20_$7284_$_t_address_$_t_uint256_$_t_uint256_$_t_address_$returns$_t_uint256_$value_$",
                           "typeString": "function (uint256) pure returns (function (contract IERC20,uint256,contract IERC20,address,uint256,uint256,address) payable external returns (uint256))"
                         }
                       },
@@ -3698,7 +3698,7 @@
                       "nodeType": "FunctionCall",
                       "src": "5606:48:6",
                       "typeDescriptions": {
-                        "typeIdentifier": "t_function_external_payable$_t_contract$_IERC20_$7016_$_t_uint256_$_t_contract$_IERC20_$7016_$_t_address_$_t_uint256_$_t_uint256_$_t_address_$returns$_t_uint256_$value",
+                        "typeIdentifier": "t_function_external_payable$_t_contract$_IERC20_$7284_$_t_uint256_$_t_contract$_IERC20_$7284_$_t_address_$_t_uint256_$_t_uint256_$_t_address_$returns$_t_uint256_$value",
                         "typeString": "function (contract IERC20,uint256,contract IERC20,address,uint256,uint256,address) payable external returns (uint256)"
                       }
                     },
@@ -3781,7 +3781,7 @@
                   "stateVariable": false,
                   "storageLocation": "default",
                   "typeDescriptions": {
-                    "typeIdentifier": "t_contract$_IERC20_$7016",
+                    "typeIdentifier": "t_contract$_IERC20_$7284",
                     "typeString": "contract IERC20"
                   },
                   "typeName": {
@@ -3789,10 +3789,10 @@
                     "id": 2140,
                     "name": "IERC20",
                     "nodeType": "UserDefinedTypeName",
-                    "referencedDeclaration": 7016,
+                    "referencedDeclaration": 7284,
                     "src": "4240:6:6",
                     "typeDescriptions": {
-                      "typeIdentifier": "t_contract$_IERC20_$7016",
+                      "typeIdentifier": "t_contract$_IERC20_$7284",
                       "typeString": "contract IERC20"
                     }
                   },
@@ -3809,7 +3809,7 @@
                   "stateVariable": false,
                   "storageLocation": "default",
                   "typeDescriptions": {
-                    "typeIdentifier": "t_contract$_IERC20_$7016",
+                    "typeIdentifier": "t_contract$_IERC20_$7284",
                     "typeString": "contract IERC20"
                   },
                   "typeName": {
@@ -3817,10 +3817,10 @@
                     "id": 2142,
                     "name": "IERC20",
                     "nodeType": "UserDefinedTypeName",
-                    "referencedDeclaration": 7016,
+                    "referencedDeclaration": 7284,
                     "src": "4271:6:6",
                     "typeDescriptions": {
-                      "typeIdentifier": "t_contract$_IERC20_$7016",
+                      "typeIdentifier": "t_contract$_IERC20_$7284",
                       "typeString": "contract IERC20"
                     }
                   },
@@ -3973,7 +3973,7 @@
                             "name": "this",
                             "nodeType": "Identifier",
                             "overloadedDeclarations": [],
-                            "referencedDeclaration": 7197,
+                            "referencedDeclaration": 7465,
                             "src": "6051:4:6",
                             "typeDescriptions": {
                               "typeIdentifier": "t_contract$_KyberInterace_$2355",
@@ -4032,7 +4032,7 @@
                         "referencedDeclaration": 2234,
                         "src": "6019:13:6",
                         "typeDescriptions": {
-                          "typeIdentifier": "t_contract$_IERC20_$7016",
+                          "typeIdentifier": "t_contract$_IERC20_$7284",
                           "typeString": "contract IERC20"
                         }
                       },
@@ -4043,7 +4043,7 @@
                       "lValueRequested": false,
                       "memberName": "balanceOf",
                       "nodeType": "MemberAccess",
-                      "referencedDeclaration": 6961,
+                      "referencedDeclaration": 7229,
                       "src": "6019:23:6",
                       "typeDescriptions": {
                         "typeIdentifier": "t_function_external_view$_t_address_$returns$_t_uint256_$",
@@ -4118,7 +4118,7 @@
                         "referencedDeclaration": 2234,
                         "src": "6067:13:6",
                         "typeDescriptions": {
-                          "typeIdentifier": "t_contract$_IERC20_$7016",
+                          "typeIdentifier": "t_contract$_IERC20_$7284",
                           "typeString": "contract IERC20"
                         }
                       },
@@ -4129,7 +4129,7 @@
                       "lValueRequested": false,
                       "memberName": "transfer",
                       "nodeType": "MemberAccess",
-                      "referencedDeclaration": 6970,
+                      "referencedDeclaration": 7238,
                       "src": "6067:22:6",
                       "typeDescriptions": {
                         "typeIdentifier": "t_function_external_nonpayable$_t_address_$_t_uint256_$returns$_t_bool_$",
@@ -4197,7 +4197,7 @@
                   "stateVariable": false,
                   "storageLocation": "default",
                   "typeDescriptions": {
-                    "typeIdentifier": "t_contract$_IERC20_$7016",
+                    "typeIdentifier": "t_contract$_IERC20_$7284",
                     "typeString": "contract IERC20"
                   },
                   "typeName": {
@@ -4205,10 +4205,10 @@
                     "id": 2233,
                     "name": "IERC20",
                     "nodeType": "UserDefinedTypeName",
-                    "referencedDeclaration": 7016,
+                    "referencedDeclaration": 7284,
                     "src": "5959:6:6",
                     "typeDescriptions": {
-                      "typeIdentifier": "t_contract$_IERC20_$7016",
+                      "typeIdentifier": "t_contract$_IERC20_$7284",
                       "typeString": "contract IERC20"
                     }
                   },
@@ -4270,10 +4270,10 @@
                       "name": "revert",
                       "nodeType": "Identifier",
                       "overloadedDeclarations": [
-                        7140,
-                        7141
+                        7408,
+                        7409
                       ],
-                      "referencedDeclaration": 7141,
+                      "referencedDeclaration": 7409,
                       "src": "6267:6:6",
                       "typeDescriptions": {
                         "typeIdentifier": "t_function_revert_pure$_t_string_memory_ptr_$returns$__$",
@@ -4461,7 +4461,7 @@
                               "name": "this",
                               "nodeType": "Identifier",
                               "overloadedDeclarations": [],
-                              "referencedDeclaration": 7197,
+                              "referencedDeclaration": 7465,
                               "src": "6589:4:6",
                               "typeDescriptions": {
                                 "typeIdentifier": "t_contract$_KyberInterace_$2355",
@@ -4652,7 +4652,7 @@
                       "name": "selfdestruct",
                       "nodeType": "Identifier",
                       "overloadedDeclarations": [],
-                      "referencedDeclaration": 7143,
+                      "referencedDeclaration": 7411,
                       "src": "6666:12:6",
                       "typeDescriptions": {
                         "typeIdentifier": "t_function_selfdestruct_nonpayable$_t_address_payable_$returns$__$",
@@ -4750,7 +4750,7 @@
                         "name": "msg",
                         "nodeType": "Identifier",
                         "overloadedDeclarations": [],
-                        "referencedDeclaration": 7135,
+                        "referencedDeclaration": 7403,
                         "src": "6843:3:6",
                         "typeDescriptions": {
                           "typeIdentifier": "t_magic_message",
@@ -5118,10 +5118,10 @@
                       "name": "require",
                       "nodeType": "Identifier",
                       "overloadedDeclarations": [
-                        7138,
-                        7139
+                        7406,
+                        7407
                       ],
-                      "referencedDeclaration": 7139,
+                      "referencedDeclaration": 7407,
                       "src": "7307:7:6",
                       "typeDescriptions": {
                         "typeIdentifier": "t_function_require_pure$_t_bool_$_t_string_memory_ptr_$returns$__$",
