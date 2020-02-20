@@ -32,94 +32,121 @@ import "../../../node_modules/@openzeppelin/upgrades/contracts/Initializable.sol
 import "../../../node_modules/@openzeppelin/contracts-ethereum-package/contracts/math/SafeMath.sol";
 import "../../../node_modules/@openzeppelin/contracts-ethereum-package/contracts/token/ERC20/IERC20.sol";
 
-interface LLP_ERC20Token_General {
-    function LetsInvest(address payable _towhomtoIssueAddress, uint _fulcrumPortionAllocation, address _InvesteeTokenAddress, address _fulcrumAddress, address _ERC20forFulcrum) external payable returns(uint); 
+interface LLP_ERC20Token_General_Link {
+    function LetsInvest(
+        address payable _towhomtoIssueAddress,
+        uint256 _fulcrumPortionAllocation,
+        address _InvesteeTokenAddress,
+        address _fulcrumAddress,
+        address _ERC20forFulcrum
+    ) external payable returns (uint256);
 }
 
 // through this contract we are putting 34% allocation to 2xLongETH and 66% to Uniswap pool
 contract ChainLink_LinkToken_LLPZap is Initializable {
-    using SafeMath for uint;
-    
+    using SafeMath for uint256;
+
     // state variables
 
     // - THESE MUST ALWAYS STAY IN THE SAME LAYOUT
     bool private stopped;
     address payable public owner;
-    LLP_ERC20Token_General public LLP_ERC20Token_GeneralAddress;
+    LLP_ERC20Token_General_Link public LLP_ERC20Token_GeneralAddress;
     address public ChainLinkAddress;
     address public ChainLinkFulCrumAddress;
 
     // circuit breaker modifiers
     modifier stopInEmergency {
-        if (stopped) 
-            {revert("Temporarily Paused");} 
-        else {
-            _;}
+        if (stopped) {
+            revert("Temporarily Paused");
+        } else {
+            _;
         }
+    }
     modifier onlyOwner() {
         require(isOwner(), "you are not authorised to call this function");
         _;
     }
-    
-    function initialize
-    (address _LLP_ERC20Token_GeneralAddress,
-     address _ChainLinkAddress,
-     address _ChainLinkFulCrumAddress)
-    initializer public {
+
+    function initialize(
+        address _LLP_ERC20Token_GeneralAddress,
+        address _ChainLinkAddress,
+        address _ChainLinkFulCrumAddress
+    ) public initializer {
         stopped = false;
         owner = msg.sender;
-        LLP_ERC20Token_GeneralAddress = LLP_ERC20Token_General(_LLP_ERC20Token_GeneralAddress);
+        LLP_ERC20Token_GeneralAddress = LLP_ERC20Token_General_Link(
+            _LLP_ERC20Token_GeneralAddress
+        );
         ChainLinkAddress = _ChainLinkAddress;
         ChainLinkFulCrumAddress = _ChainLinkFulCrumAddress;
     }
 
     // this function should be called should we ever want to change the underlying LLP_GeneralAddress Contract address
-    function set_LLP_ERC20Token_GeneralAddress(address _new_LLP_ERC20Token_GeneralAddress) public onlyOwner {
-        LLP_ERC20Token_GeneralAddress = LLP_ERC20Token_General (_new_LLP_ERC20Token_GeneralAddress);
+    function set_LLP_ERC20Token_GeneralAddress(
+        address _new_LLP_ERC20Token_GeneralAddress
+    ) public onlyOwner {
+        LLP_ERC20Token_GeneralAddress = LLP_ERC20Token_General_Link(
+            _new_LLP_ERC20Token_GeneralAddress
+        );
     }
 
     // this function should be called should we ever want to change the underlying ChainLink Contract address
-    function set_ChainLinkAddress(address _new_ChainLinkAddress) public onlyOwner {
+    function set_ChainLinkAddress(address _new_ChainLinkAddress)
+        public
+        onlyOwner
+    {
         ChainLinkAddress = _new_ChainLinkAddress;
     }
 
     // this function should be called should we ever want to change the underlying Fulcrum ChainLink Contract address
-    function set_ChainLinkFulCrumAddress(address _new_ChainLinkFulCrumAddress) public onlyOwner {
+    function set_ChainLinkFulCrumAddress(address _new_ChainLinkFulCrumAddress)
+        public
+        onlyOwner
+    {
         ChainLinkFulCrumAddress = _new_ChainLinkFulCrumAddress;
     }
-    
+
     // main function which will make the investments
-    function LetsInvest(address payable _towhomtoIssueAddress, uint _FulcrumAllocation) public payable returns(uint) {
-       LLP_ERC20Token_GeneralAddress.LetsInvest.value(msg.value)(_towhomtoIssueAddress, 34, ChainLinkAddress,ChainLinkFulCrumAddress, ChainLinkAddress);
+    function LetsInvest(
+        address payable _towhomtoIssueAddress,
+        uint256 _FulcrumAllocation
+    ) public payable returns (uint256) {
+        LLP_ERC20Token_GeneralAddress.LetsInvest.value(msg.value)(
+            _towhomtoIssueAddress,
+            34,
+            ChainLinkAddress,
+            ChainLinkFulCrumAddress,
+            ChainLinkAddress
+        );
     }
 
-    function inCaseTokengetsStuck(IERC20 _TokenAddress) onlyOwner public {
-        uint qty = _TokenAddress.balanceOf(address(this));
+    function inCaseTokengetsStuck(IERC20 _TokenAddress) public onlyOwner {
+        uint256 qty = _TokenAddress.balanceOf(address(this));
         _TokenAddress.transfer(owner, qty);
     }
-
 
     // - fallback function let you / anyone send ETH to this wallet without the need to call any function
     function() external payable {
         if (msg.sender != owner) {
-            LetsInvest(msg.sender, 34);}
+            LetsInvest(msg.sender, 34);
+        }
     }
-    
+
     // - to Pause the contract
-    function toggleContractActive() onlyOwner public {
+    function toggleContractActive() public onlyOwner {
         stopped = !stopped;
     }
 
     // - to withdraw any ETH balance sitting in the contract
-    function withdraw() onlyOwner public{
+    function withdraw() public onlyOwner {
         owner.transfer(address(this).balance);
     }
-    
+
     // - to kill the contract
     function destruct() public onlyOwner {
         selfdestruct(owner);
     }
-
 
     /**
      * @return true if `msg.sender` is the owner of the contract.
@@ -140,7 +167,10 @@ contract ChainLink_LinkToken_LLPZap is Initializable {
      * @dev Transfers ownership of the contract to a new account (`newOwner`).
      */
     function _transferOwnership(address payable newOwner) internal {
-        require(newOwner != address(0), "Ownable: new owner is the zero address");
+        require(
+            newOwner != address(0),
+            "Ownable: new owner is the zero address"
+        );
         owner = newOwner;
     }
 

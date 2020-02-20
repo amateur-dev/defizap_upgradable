@@ -32,7 +32,7 @@ import "../../../node_modules/@openzeppelin/upgrades/contracts/Initializable.sol
 import "../../../node_modules/@openzeppelin/contracts-ethereum-package/contracts/math/SafeMath.sol";
 import "../../../node_modules/@openzeppelin/contracts-ethereum-package/contracts/token/ERC20/IERC20.sol";
 
-interface LLP_General {
+interface LLP_General_WBTC {
     function LetsInvest(
         address payable _towhomtoIssueAddress,
         uint256 _2XLongETHAllocation,
@@ -51,7 +51,7 @@ contract wBTC_LLP_2xETH is Initializable {
     // - THESE MUST ALWAYS STAY IN THE SAME LAYOUT
     bool private stopped;
     address payable public owner;
-    LLP_General public LLP_GeneralAddress;
+    LLP_General_WBTC public LLP_GeneralAddress;
     address public wBTCAddress;
 
     // circuit breaker modifiers
@@ -73,7 +73,7 @@ contract wBTC_LLP_2xETH is Initializable {
     {
         stopped = false;
         owner = msg.sender;
-        LLP_GeneralAddress = LLP_General(_LLP_GeneralAddress);
+        LLP_GeneralAddress = LLP_General_WBTC(_LLP_GeneralAddress);
         wBTCAddress = _wBTCAddress;
     }
 
@@ -82,7 +82,7 @@ contract wBTC_LLP_2xETH is Initializable {
         public
         onlyOwner
     {
-        LLP_GeneralAddress = LLP_General(_new_LLP_GeneralAddress);
+        LLP_GeneralAddress = LLP_General_WBTC(_new_LLP_GeneralAddress);
     }
 
     // this function should be called should we ever want to change the underlying wBTC Contract address
