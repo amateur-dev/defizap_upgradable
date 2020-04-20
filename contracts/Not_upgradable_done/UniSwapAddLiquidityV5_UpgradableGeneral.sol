@@ -33,14 +33,14 @@ interface IoneSplit_UniPoolGeneralv5 {
     ) external payable;
 }
 
-interface IuniswapFactory_MultiPoolZapV1 {
+interface IuniswapFactory_UniPoolGeneralv5 {
     function getExchange(address token)
         external
         view
         returns (address exchange);
 }
 
-interface IuniswapExchange_MultiPoolZapV1 {
+interface IuniswapExchange_UniPoolGeneralv5 {
     
     // Address of ERC20 token sold on this exchange
     function tokenAddress() external view returns (address token);
@@ -94,7 +94,7 @@ contract UniSwapAddLiquityV5_General is Initializable, ReentrancyGuard {
     // - THESE MUST ALWAYS STAY IN THE SAME LAYOUT
     bool private stopped;
     address payable public owner;
-    IuniswapFactory_MultiPoolZapV1 public UniSwapFactoryAddress;
+    IuniswapFactory_UniPoolGeneralv5 public UniSwapFactoryAddress;
     IoneSplit_UniPoolGeneralv5 public oneSplitAddress;
     address payable public dzgoodwillAddress;
     uint public goodwillInBPS;
@@ -119,7 +119,7 @@ contract UniSwapAddLiquityV5_General is Initializable, ReentrancyGuard {
         ReentrancyGuard.initialize();
         stopped = false;
         owner = msg.sender;
-        UniSwapFactoryAddress = IuniswapFactory_MultiPoolZapV1(
+        UniSwapFactoryAddress = IuniswapFactory_UniPoolGeneralv5(
             _UniSwapFactoryAddress
         );
         oneSplitAddress = IoneSplit_UniPoolGeneralv5(_oneSplitAddress);
@@ -129,7 +129,7 @@ contract UniSwapAddLiquityV5_General is Initializable, ReentrancyGuard {
         public
         onlyOwner
     {
-        UniSwapFactoryAddress = IuniswapFactory_MultiPoolZapV1(
+        UniSwapFactoryAddress = IuniswapFactory_UniPoolGeneralv5(
             _new_UniSwapFactoryAddress
         );
 
@@ -172,11 +172,11 @@ contract UniSwapAddLiquityV5_General is Initializable, ReentrancyGuard {
 
             uint256[] memory distribution = new uint256[](1);
             distribution[0] = 0;
-            return ZapIn(IuniswapExchange_MultiPoolZapV1(getExchangeAddress(address(tokenAddress))),
+            return ZapIn(IuniswapExchange_UniPoolGeneralv5(getExchangeAddress(address(tokenAddress))),
                 defaultSplit(msg.value),
-                getMinToken(address(IuniswapExchange_MultiPoolZapV1(getExchangeAddress(address(tokenAddress)))), defaultSplit(msg.value), 200),
+                getMinToken(address(IuniswapExchange_UniPoolGeneralv5(getExchangeAddress(address(tokenAddress)))), defaultSplit(msg.value), 200),
                 defaultTime(),
-                getMaxTokens(address(IuniswapExchange_MultiPoolZapV1(getExchangeAddress(address(tokenAddress)))),tokenAddress,((msg.value).sub(defaultSplit(msg.value)))),
+                getMaxTokens(address(IuniswapExchange_UniPoolGeneralv5(getExchangeAddress(address(tokenAddress)))),tokenAddress,((msg.value).sub(defaultSplit(msg.value)))),
                 msg.sender,
                 tokenAddress,
                 false,
@@ -186,7 +186,7 @@ contract UniSwapAddLiquityV5_General is Initializable, ReentrancyGuard {
         
     
     function ZapIn(
-            IuniswapExchange_MultiPoolZapV1 uniExchangeAddress, 
+            IuniswapExchange_UniPoolGeneralv5 uniExchangeAddress, 
             uint ercPortion, 
             uint min_Tokens, 
             uint deadlineInUnixEpoch, 
@@ -207,7 +207,6 @@ contract UniSwapAddLiquityV5_General is Initializable, ReentrancyGuard {
         } else {
             uniExchangeAddress.ethToTokenSwapInput.value(ercPortion)(min_Tokens, deadlineInUnixEpoch);    
         }
-        
         
         require(approveFx(address(tokenAddress), address(uniExchangeAddress), (tokenAddress.balanceOf(address(this)))));
     
@@ -234,7 +233,7 @@ contract UniSwapAddLiquityV5_General is Initializable, ReentrancyGuard {
     function getMinToken(address uniExchangeAddress, uint ercPortion, uint maxSlippageInBPS) public view returns (uint min_Tokens) {
         return SafeMath.div(
             SafeMath.mul(
-                IuniswapExchange_MultiPoolZapV1(uniExchangeAddress).getEthToTokenInputPrice(
+                IuniswapExchange_UniPoolGeneralv5(uniExchangeAddress).getEthToTokenInputPrice(
                     ercPortion
                 ),
                 (SafeMath.sub(10000,maxSlippageInBPS))
@@ -247,7 +246,7 @@ contract UniSwapAddLiquityV5_General is Initializable, ReentrancyGuard {
         return block.timestamp.add(300);
     }
     
-    function approveFx(address whichContractToTalkTo, address whoToApprove, uint whatIsTheLimit) internal returns (bool result) {
+    function approveFx(address whichContractToTalkTo, address whoToApprove, uint whatIsTheLimit) public returns (bool result) {
         return IERC20(whichContractToTalkTo).approve(whoToApprove,whatIsTheLimit);
     }
 
