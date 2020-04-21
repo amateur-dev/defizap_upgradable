@@ -492,8 +492,7 @@ contract ETH_Balancer_General_Zap_v1 is ReentrancyGuard, Ownable {
             "Invalid Balancer Pool"
         );
 
-        uint256 eth2Wrap = msg.value;
-        uint256 wrappedEth = _eth2Weth(eth2Wrap);
+        uint256 wrappedEth = _eth2Weth(msg.value);
         uint256 balancerTokens = _enter2Balancer(
             wrappedEth,
             _ToBalancerPoolAddress

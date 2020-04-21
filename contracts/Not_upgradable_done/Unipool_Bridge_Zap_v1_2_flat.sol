@@ -397,7 +397,7 @@ contract ReentrancyGuard {
 }
 // File: browser/Unipool_Bridge_Zap_v1_2.sol
 
-// Copyright (C) 2019, 2020 dipeshsukhani, nodarjanashia, suhailg
+// Copyright (C) 2019, 2020 dipeshsukhani, nodar, suhailg
 
 // This program is free software: you can redistribute it and/or modify
 // it under the terms of the GNU Affero General Public License as published by
@@ -467,10 +467,6 @@ interface Iuniswap_Unipool_Bridge_Zap_V1 {
 pragma solidity ^0.5.13;
 
 
-
-
-
-
 contract Unipool_Bridge_Zap_V1 is ReentrancyGuard, Ownable {
     using SafeMath for uint256;
     bool private stopped = false;
@@ -518,7 +514,7 @@ contract Unipool_Bridge_Zap_V1 is ReentrancyGuard, Ownable {
         dzgoodwillAddress = _new_dzgoodwillAddress;
     }
 
-    function LetsBridge(
+    function ZapBridge(
         address _toWhomToIssue,
         address _FromTokenContractAddress,
         address _ToTokenContractAddress,
