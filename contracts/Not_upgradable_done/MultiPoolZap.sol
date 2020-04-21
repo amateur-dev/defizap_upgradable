@@ -12,6 +12,7 @@
 //
 // Visit <https://www.gnu.org/licenses/>for a copy of the GNU Affero General Public License
 
+import "../../node_modules/@openzeppelin/contracts/ownership/Ownable.sol";
 import "../../node_modules/@openzeppelin/contracts-ethereum-package/contracts/token/ERC20/IERC20.sol";
 
 pragma solidity ^0.5.0;
@@ -24,12 +25,25 @@ interface uniswapZap {
     function EasyZapIn(IERC20 tokenAddress) external payable returns (uint LiquidityTokens, uint residualTokens);
 }
 
-contract MultiPoolZap {
+contract MultiPoolZap is Ownable {
     uniswapZap public uniswapZapAddress;
     UniswapFactoryInterface public UniswapFactory;
     
-    function multipleZapIn(IERC20[10] memory tokenAddresses, uint256[10] memory values) public {
-        uint residualETH;
+    constructor(address _uniswapZapAddress, address _UniswapFactory) public {
+         uniswapZapAddress = uniswapZap(_uniswapZapAddress);
+         UniswapFactory = UniswapFactoryInterface(_UniswapFactory);
+    }
+    
+    function set_uniswapZapAddress(address _uniswapZapAddress) onlyOwner public {
+        uniswapZapAddress = uniswapZap (_uniswapZapAddress);
+    }
+    
+    function set_UniswapFactory(address _UniswapFactory) onlyOwner public {
+        UniswapFactory = UniswapFactoryInterface(_UniswapFactory);
+    }
+    
+    function multipleZapIn(IERC20[] memory tokenAddresses, uint256[] memory values) public payable {
+        uint residualETH=0;
         for (uint i=0;i<tokenAddresses.length;i++) {
             (uint LPT, uint resiETH)= uniswapZapAddress.EasyZapIn.value((values[i]+residualETH))(tokenAddresses[i]);
             IERC20(UniswapFactory.getExchange(address(tokenAddresses[i]))).transfer(msg.sender, LPT);
