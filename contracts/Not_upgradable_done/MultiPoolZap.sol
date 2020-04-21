@@ -22,7 +22,8 @@ interface UniswapFactoryInterface {
 }
 
 interface uniswapZap {
-    function EasyZapIn(IERC20 tokenAddress) external payable returns (uint LiquidityTokens, uint residualTokens);
+    function getExchangeAddress(address _TokenContractAddress) external view returns (address uniExchangeAddress);
+    function EasyZapIn(IERC20 tokenAddress) external payable  returns (uint LiquidityTokens, uint residualTokens);
 }
 
 contract MultiPoolZap is Ownable {
@@ -50,5 +51,26 @@ contract MultiPoolZap is Ownable {
             residualETH = resiETH;
         }
         address(msg.sender).transfer(residualETH);
+    }
+    
+    // function multipleZapIn(IERC20 tokenAddresses) public payable {
+        
+    //     (uint LiquidityTokens, uint residualTokens) = uniswapZapAddress.EasyZapIn.value(msg.value)(tokenAddresses);
+    //     // IERC20(UniswapFactory.getExchange(address(tokenAddresses))).transfer(msg.sender, LPT);
+        
+    //     // for (uint i=0;i<tokenAddresses.length;i++) {
+    //     //     (uint LPT, uint resiETH)= uniswapZapAddress.EasyZapIn.value((values[i]+residualETH))(tokenAddresses[i]);
+    //     //     IERC20(UniswapFactory.getExchange(address(tokenAddresses[i]))).transfer(msg.sender, LPT);
+    //     //     residualETH = resiETH;
+    //     // }
+    //     // address(msg.sender).transfer(resiETH);
+    // }
+    
+    // function getAddress(address _tokenAddress) public view returns (address){
+    //     return uniswapZapAddress.getExchangeAddress(_tokenAddress);
+    // }
+    
+    // - fallback function let you / anyone send ETH to this wallet without the need to call any function
+    function() external payable {
     }
 }
