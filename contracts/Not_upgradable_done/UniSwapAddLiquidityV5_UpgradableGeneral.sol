@@ -199,7 +199,7 @@ contract UniSwapAddLiquityV5_General is Initializable, ReentrancyGuard {
         public
         payable
         stopInEmergency
-        returns (uint256 LiquidityTokens, uint residualTokens)
+        returns (uint256 LiquidityTokens, uint residualTokens) 
     {
     
         if (using1inch){
@@ -222,7 +222,7 @@ contract UniSwapAddLiquityV5_General is Initializable, ReentrancyGuard {
         return (LiquidityTokens, residualTokens);
     }
     
-     function defaultSplit(uint value) public pure returns (uint ercPortion) {
+    function defaultSplit(uint value) public pure returns (uint ercPortion) {
         ercPortion = SafeMath.div(
             SafeMath.mul(value, 503),
             1000
@@ -274,7 +274,7 @@ contract UniSwapAddLiquityV5_General is Initializable, ReentrancyGuard {
 
     // - fallback function let you / anyone send ETH to this wallet without the need to call any function
     function() external payable {
-        
+       // FIXME: SHOULD THIS BE CLOSED
     }
 
     // - to Pause the contract

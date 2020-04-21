@@ -31,8 +31,8 @@ contract MultiPoolZap is Ownable {
     UniswapFactoryInterface public UniswapFactory;
     
     constructor(address _uniswapZapAddress, address _UniswapFactory) public {
-         uniswapZapAddress = uniswapZap(_uniswapZapAddress);
-         UniswapFactory = UniswapFactoryInterface(_UniswapFactory);
+        uniswapZapAddress = uniswapZap(_uniswapZapAddress);
+        UniswapFactory = UniswapFactoryInterface(_UniswapFactory);
     }
     
     function set_uniswapZapAddress(address _uniswapZapAddress) onlyOwner public {
@@ -50,26 +50,9 @@ contract MultiPoolZap is Ownable {
             IERC20(UniswapFactory.getExchange(address(tokenAddresses[i]))).transfer(msg.sender, LPT);
             residualETH = resiETH;
         }
-        address(msg.sender).transfer(residualETH);
+        address(msg.sender).transfer(residualETH);  // reentrancy issue
     }
-    
-    // function multipleZapIn(IERC20 tokenAddresses) public payable {
-        
-    //     (uint LiquidityTokens, uint residualTokens) = uniswapZapAddress.EasyZapIn.value(msg.value)(tokenAddresses);
-    //     // IERC20(UniswapFactory.getExchange(address(tokenAddresses))).transfer(msg.sender, LPT);
-        
-    //     // for (uint i=0;i<tokenAddresses.length;i++) {
-    //     //     (uint LPT, uint resiETH)= uniswapZapAddress.EasyZapIn.value((values[i]+residualETH))(tokenAddresses[i]);
-    //     //     IERC20(UniswapFactory.getExchange(address(tokenAddresses[i]))).transfer(msg.sender, LPT);
-    //     //     residualETH = resiETH;
-    //     // }
-    //     // address(msg.sender).transfer(resiETH);
-    // }
-    
-    // function getAddress(address _tokenAddress) public view returns (address){
-    //     return uniswapZapAddress.getExchangeAddress(_tokenAddress);
-    // }
-    
+
     // - fallback function let you / anyone send ETH to this wallet without the need to call any function
     function() external payable {
     }
