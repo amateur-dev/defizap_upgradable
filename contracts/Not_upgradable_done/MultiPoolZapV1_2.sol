@@ -1,4 +1,4 @@
-// Copyright (C) 2019, 2020 dipeshsukhani, nodar, suhailg
+// Copyright (C) 2019, 2020 dipeshsukhani, nodar, suhailg, apoorvlathey
 
 // This program is free software: you can redistribute it and/or modify
 // it under the terms of the GNU Affero General Public License as published by
@@ -31,11 +31,30 @@ contract MultiPoolZap is Ownable {
     
     uniswapPoolZap public uniswapPoolZapAddress;
     UniswapFactoryInterface public UniswapFactory;
+    uint16 public goodwill;
+    address payable public dzgoodwillAddress;
     mapping(address => uint256) private userBalance;
     
-    constructor() public {
+    constructor(uint16 _goodwill, address payable _dzgoodwillAddress) public {
+        goodwill = _goodwill;
+        dzgoodwillAddress = _dzgoodwillAddress;
         uniswapPoolZapAddress = uniswapPoolZap(0x97402249515994Cc0D22092D3375033Ad0ea438A);
         UniswapFactory = UniswapFactoryInterface(0xc0a47dFe034B400B47bDaD5FecDa2621de6c4d95);
+    }
+
+    function set_new_goodwill(uint16 _new_goodwill) public onlyOwner {
+        require(
+            _new_goodwill > 0 && _new_goodwill < 10000,
+            "GoodWill Value not allowed"
+        );
+        goodwill = _new_goodwill;
+    }
+
+    function set_new_dzgoodwillAddress(address payable _new_dzgoodwillAddress)
+        public
+        onlyOwner
+    {
+        dzgoodwillAddress = _new_dzgoodwillAddress;
     }
     
     function set_uniswapPoolZapAddress(address _uniswapPoolZapAddress) onlyOwner public {
@@ -46,17 +65,27 @@ contract MultiPoolZap is Ownable {
         UniswapFactory = UniswapFactoryInterface(_UniswapFactory);
     }
     
-    function multipleZapIn(address[] memory underlyingTokenAddresses, uint256[] memory respectiveValuesinWei) public payable {
-        uint totalLeftToBeInvested;
+    function multipleZapIn(address[] memory underlyingTokenAddresses, uint256[] memory respectiveWeightedValues) public payable {
+        
+        uint totalWeights;
+        
+        require(underlyingTokenAddresses.length == respectiveWeightedValues.length);
+        
         for(uint i=0;i<underlyingTokenAddresses.length;i++) {
-            totalLeftToBeInvested = (totalLeftToBeInvested).add(respectiveValuesinWei[i]);
+            totalWeights = (totalWeights).add(respectiveWeightedValues[i]);
         }
-        require(msg.value == totalLeftToBeInvested && underlyingTokenAddresses.length == respectiveValuesinWei.length);
+        
+        uint goodwillPortion = ((msg.value).mul(goodwill)).div(10000);
+        uint totalInvestable = (msg.value).sub(goodwillPortion);
+        uint totalLeftToBeInvested = totalInvestable;
+        
+        require(address(dzgoodwillAddress).send(goodwillPortion));
+
         uint residualETH;
         for (uint i=0;i<underlyingTokenAddresses.length;i++) {
-            uint LPT = uniswapPoolZapAddress.LetsInvest.value((respectiveValuesinWei[i]+residualETH))(underlyingTokenAddresses[i], address(this));
+            uint LPT = uniswapPoolZapAddress.LetsInvest.value((((totalInvestable).mul(respectiveWeightedValues[i])).div(totalWeights)+residualETH))(underlyingTokenAddresses[i], address(this));
             IERC20(UniswapFactory.getExchange(address(underlyingTokenAddresses[i]))).transfer(msg.sender, LPT);
-            totalLeftToBeInvested = (totalLeftToBeInvested).sub(respectiveValuesinWei[i]);
+            totalLeftToBeInvested = (totalLeftToBeInvested).sub(((totalInvestable).mul(respectiveWeightedValues[i])).div(totalWeights));
             residualETH = (address(this).balance).sub(totalLeftToBeInvested);
         }
 
