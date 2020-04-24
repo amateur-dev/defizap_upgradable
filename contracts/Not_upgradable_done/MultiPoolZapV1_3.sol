@@ -26,7 +26,7 @@ interface uniswapPoolZap {
     function LetsInvest(address _TokenContractAddress, address _towhomtoissue) external payable returns (uint256);
 }
 
-contract MultiPoolZap is Ownable {
+contract MultiPoolZapV1_3 is Ownable {
     using SafeMath for uint;
     
     uniswapPoolZap public uniswapPoolZapAddress;
