@@ -510,7 +510,7 @@ interface Iuniswap_Balancer_Unzap_V1 {
         external
         returns (bool success);
 }
-
+// FIXME: _____________________________________ contract starts from here 
 pragma solidity ^0.5.13;
 
 
@@ -540,12 +540,11 @@ contract Balancer_Unzap_V1 is ReentrancyGuard, Ownable {
             _;
         }
     }
-
-    function EasyZapout(
-        address payable _toWhomToIssue,
-        address _ToTokenContractAddress,
-        address _ToBalancerPoolAddress,
-        uint256 _IncomingBPT
+    // FIXME: _TOWHOMTOISSUE should be the msg.sender
+    function EasyZapOut(
+        address _ToTokenContractAddress,  // @param the token in which you want to getout eg KNC
+        address _ToBalancerPoolAddress,  // @param the pool from which you want to getout from eg WETH and MKR
+        uint256 _IncomingBPT // @param qty
     ) public payable nonReentrant stopInEmergency returns (bool) {
         require(
             BalancerFactory.isBPool(_ToBalancerPoolAddress),
@@ -577,7 +576,7 @@ contract Balancer_Unzap_V1 is ReentrancyGuard, Ownable {
                 _directZapout(
                     _ToBalancerPoolAddress,
                     _ToTokenContractAddress,
-                    _toWhomToIssue,
+                    msg.sender,
                     SafeMath.sub(_IncomingBPT, goodwillPortion)
                 ),
                 "Error in transferring Token"
@@ -585,7 +584,7 @@ contract Balancer_Unzap_V1 is ReentrancyGuard, Ownable {
             return true;
         }
 
-        (address fromTokenAddress, uint256 returnedTokens) = _getBestDeal(
+        (address fromTokenAddress, uint256 returnedTokens) = _getBestDeal(  //mkr and the qty of mkr
             _ToBalancerPoolAddress,
             SafeMath.sub(_IncomingBPT, goodwillPortion)
         );
@@ -605,18 +604,20 @@ contract Balancer_Unzap_V1 is ReentrancyGuard, Ownable {
 
     function ZapOut(
         address payable _toWhomToIssue,
-        address _ToTokenContractAddress,
-        address _ToBalancerPoolAddress,
-        uint256 _IncomingBPT,
-        address[] memory _intermediateTokens,
-        uint256[] memory _proportions
+        address _ToTokenContractAddress, // @param the token to which you want to convert to, in the case of ETH it is going to be a address(0x0)
+        address _ToBalancerPoolAddress, // @param the address of the Balancer Pool from which you want to zapout
+        uint256 _IncomingBPT, // @param qty
+        address[] memory _intermediateTokens,  // @param the tokens to which the pool must be liquidated in
+        uint256[] memory _proportions  // @param the proportion / ratio that is applicable for the _intermediateTokens
     ) public payable nonReentrant stopInEmergency returns (bool) {
+        // FIXME: not required if we are using JS
         require(
             BalancerFactory.isBPool(_ToBalancerPoolAddress),
             "Invalid Balancer Pool"
         );
 
         //transfer goodwill
+        // TODO: to review the underlying fx
         uint256 goodwillPortion = _transferGoodwill(
             _ToBalancerPoolAddress,
             _IncomingBPT
@@ -630,7 +631,7 @@ contract Balancer_Unzap_V1 is ReentrancyGuard, Ownable {
             ),
             "Error in transferring BPT:2"
         );
-
+        // if the exiting token is already a part of the pool
         if (
             IBPool_Balancer_Unzap_V1(_ToBalancerPoolAddress).isBound(
                 _ToTokenContractAddress
@@ -647,7 +648,7 @@ contract Balancer_Unzap_V1 is ReentrancyGuard, Ownable {
             );
             return true;
         }
-
+        // TODO: to review the underlying function
         require(
             _convert(
                 _intermediateTokens,
@@ -707,12 +708,12 @@ contract Balancer_Unzap_V1 is ReentrancyGuard, Ownable {
         returns (address _token, uint256 _returnedTokens)
     {
         //get token list
-        address[] memory tokens = IBPool_Balancer_Unzap_V1(
+        address[] memory tokens = IBPool_Balancer_Unzap_V1( // [weth, mkr]
             _ToBalancerPoolAddress
         )
             .getFinalTokens();
 
-        uint256 price = 0;
+        uint256 price;
 
         for (uint256 index = 0; index < tokens.length; index++) {
 
@@ -724,7 +725,7 @@ contract Balancer_Unzap_V1 is ReentrancyGuard, Ownable {
             if (address(FromUniSwapExchangeContractAddress) == address(0)) {
                 continue;
             }
-
+            // FIXME: to get the price of the token in which the user wants to get out into
             uint256 expectedEth = FromUniSwapExchangeContractAddress
                 .getTokenToEthInputPrice(_IncomingBPT);
 
@@ -735,7 +736,6 @@ contract Balancer_Unzap_V1 is ReentrancyGuard, Ownable {
             }
         }
 
-        require(_token != address(0), "Error in token selection");
 
         //exit balancer
         _returnedTokens = _exitBalancer(
@@ -746,12 +746,12 @@ contract Balancer_Unzap_V1 is ReentrancyGuard, Ownable {
     }
 
     function _convert(
-        address[] memory _intermediateTokens,
-        uint256[] memory _proportions,
+        address[] memory _intermediateTokens, // weth and mkr
+        uint256[] memory _proportions, // 60:40
         address _ToBalancerPoolAddress,
         address _ToTokenContractAddress,
         address _toWhomToIssue,
-        uint256 _amount
+        uint256 _amount // qty of the incoming tokens
     ) internal returns (bool) {
         require(
             _intermediateTokens.length == _proportions.length,
@@ -779,16 +779,16 @@ contract Balancer_Unzap_V1 is ReentrancyGuard, Ownable {
 
             //exit balancer
             uint256 returnedTokens = _exitBalancer(
-                _ToBalancerPoolAddress,
-                _intermediateTokens[index],
-                amount
+                _ToBalancerPoolAddress, // the address of the BPT pool
+                _intermediateTokens[index], // weth
+                amount // amount * 0.6
             );
 
             //convert to Eth or ERC
             if (_ToTokenContractAddress == address(0)) {
-                _token2Eth(
-                    _intermediateTokens[index],
-                    returnedTokens,
+                _token2Eth( // function to convert the tokens to eth
+                    _intermediateTokens[index], // weth
+                    returnedTokens,// qty of weth
                     _toWhomToIssue
                 );
             } else {
@@ -832,11 +832,7 @@ contract Balancer_Unzap_V1 is ReentrancyGuard, Ownable {
          = Iuniswap_Balancer_Unzap_V1(
             UniSwapFactoryAddress.getExchange(_FromTokenContractAddress)
         );
-
-        require(
-            address(FromUniSwapExchangeContractAddress) != address(0),
-            "No exchange exist for this token"
-        );
+    
 
         IERC20(_FromTokenContractAddress).approve(
             address(FromUniSwapExchangeContractAddress),
@@ -866,10 +862,7 @@ contract Balancer_Unzap_V1 is ReentrancyGuard, Ownable {
             UniSwapFactoryAddress.getExchange(_FromTokenContractAddress)
         );
 
-        require(
-            address(FromUniSwapExchangeContractAddress) != address(0),
-            "No exchange exist for this token"
-        );
+
 
         IERC20(_FromTokenContractAddress).approve(
             address(FromUniSwapExchangeContractAddress),
