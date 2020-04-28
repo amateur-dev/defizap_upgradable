@@ -449,8 +449,8 @@ contract ReentrancyGuard {
 
 // File: localhost/defizap/node_modules/@openzeppelin/contracts-ethereum-package/contracts/token/ERC20/IERC20.sol
 
-//@author DeFiZap
-//@notice this contract enables entry into Balancer wETH pools using ETH.
+///@author DeFiZap
+///@notice this contract enables entry into Balancer wETH pools using ETH.
 
 // interface
 interface IWethToken_ETH_Balancer_General_Zap_V2 {
@@ -542,24 +542,26 @@ contract ETH_Balancer_General_Zap_v2 is ReentrancyGuard, Ownable {
             _;
         }
     }
-
+    
+    
     /**
     @notice This function is used to invest in given balancer pool through eth
     @param _toWhomToIssue The user address
     @param _ToBalancerPoolAddress The address of balancer pool to zap in
     @return The quantity of Balancer Pool tokens returned
      */
-    function LetsInvest(address _toWhomToIssue, address _ToBalancerPoolAddress)
+    function ZapIn(address _toWhomToIssue, address _ToBalancerPoolAddress)
         public
         payable
         nonReentrant
         stopInEmergency
         returns (uint256 balancerPoolTokensRec)
     {
-        require(
-            BalancerFactory.isBPool(_ToBalancerPoolAddress),
-            "Invalid Balancer Pool"
-        );
+        // TODO: TO MENTION THE FRONT-END TO DO THIS CHECK
+        // require(
+        //     BalancerFactory.isBPool(_ToBalancerPoolAddress),
+        //     "Invalid Balancer Pool"
+        // );
 
         address _FromTokenContractAddress = _getBestDeal(
             _ToBalancerPoolAddress
@@ -578,7 +580,8 @@ contract ETH_Balancer_General_Zap_v2 is ReentrancyGuard, Ownable {
 
             returnedTokens = FromUniSwapExchangeContractAddress
                 .ethToTokenSwapInput
-                .value(msg.value)(1, SafeMath.add(now, 1800));
+                .value(msg.value)(1, SafeMath.add(now, 300));  
+                //FIXME FOR THE PARAMETER MINIMUM TOKENS, WE CAN USE THE UNISWAP'S FUNCTION GETETHTOTOKENPRICE AND THEN MULTIPLY IT BY 99% {INSTEAD OF PUTTING IT AS 1}
         }
 
         uint256 balancerTokens = _enter2Balancer(
@@ -600,7 +603,7 @@ contract ETH_Balancer_General_Zap_v2 is ReentrancyGuard, Ownable {
             ),
             "Error 2 in transferring balancer tokens"
         );
-        balancerPoolTokensRec = balancerTokens.sub(goodwillPortion);
+        return balancerTokens.sub(goodwillPortion);
     }
 
     /**
@@ -648,7 +651,6 @@ contract ETH_Balancer_General_Zap_v2 is ReentrancyGuard, Ownable {
                 _token = tokens[index];
             }
         }
-        require(_token != address(0), "Error in token selection");
     }
 
     /**
@@ -725,12 +727,11 @@ contract ETH_Balancer_General_Zap_v2 is ReentrancyGuard, Ownable {
     function _weth2Token(uint256 eth2Wrap)
         internal
         returns (uint256 wrappedEth)
-    {
+    {   
         IWethToken_ETH_Balancer_General_Zap_V2(WethTokenAddress).deposit.value(
             eth2Wrap
         )();
-        wrappedEth = IERC20(WethTokenAddress).balanceOf(address(this));
-        require(wrappedEth > 0, "Error in wrapping ETH");
+        return (IERC20(WethTokenAddress).balanceOf(address(this)));
     }
 
     function inCaseTokengetsStuck(IERC20 _TokenAddress) public onlyOwner {
