@@ -127,17 +127,12 @@ contract MultiPoolZapV1_3 is Ownable {
     function _token2Eth(
         address _FromTokenContractAddress,
         uint256 tokens2Trade,
-        address _toWhomToIssue
+        address _toWhomToIssue 
     ) internal returns (uint256 ethBought) {
 
             UniswapExchangeInterface FromUniSwapExchangeContractAddress
          = UniswapExchangeInterface(
             UniswapFactory.getExchange(_FromTokenContractAddress)
-        );
-
-        require(
-            address(FromUniSwapExchangeContractAddress) != address(0),
-            "No exchange exist for this token"
         );
 
         IERC20(_FromTokenContractAddress).approve(
@@ -147,8 +142,8 @@ contract MultiPoolZapV1_3 is Ownable {
 
         ethBought = FromUniSwapExchangeContractAddress.tokenToEthTransferInput(
             tokens2Trade,
-            1,
-            SafeMath.add(now, 1800),
+            ((FromUniSwapExchangeContractAddress.getTokenToEthInputPrice(tokens2Trade)).mul(99).div(100)),
+            SafeMath.add(block.timestamp, 300),
             _toWhomToIssue
         );
         require(ethBought > 0, "Error in swapping Eth: 1");
