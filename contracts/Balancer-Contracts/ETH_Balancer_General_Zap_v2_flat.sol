@@ -452,7 +452,8 @@ contract ReentrancyGuard {
 ///@author DeFiZap
 ///@notice this contract enables entry into Balancer pools using ETH.
 
-// interface
+pragma solidity ^0.5.13;
+
 interface IWethToken_ETH_Balancer_General_Zap_V2 {
     function deposit() external payable;
 
@@ -461,11 +462,9 @@ interface IWethToken_ETH_Balancer_General_Zap_V2 {
     function withdraw(uint256 amount, address user) external;
 }
 
-
 interface IBFactory_ETH_Balancer_General_Zap_V2 {
     function isBPool(address b) external view returns (bool);
 }
-
 
 interface IBPool_ETH_Balancer_General_Zap_V2 {
     function joinswapExternAmountIn(
@@ -479,14 +478,12 @@ interface IBPool_ETH_Balancer_General_Zap_V2 {
     function getFinalTokens() external view returns (address[] memory tokens);
 }
 
-
 interface IuniswapFactory_ETH_Balancer_General_Zap_V2 {
     function getExchange(address token)
         external
         view
         returns (address exchange);
 }
-
 
 interface Iuniswap_ETH_Balancer_General_Zap_V2 {
     function getEthToTokenInputPrice(uint256 eth_sold)
@@ -508,10 +505,6 @@ interface Iuniswap_ETH_Balancer_General_Zap_V2 {
         returns (bool success);
 }
 
-pragma solidity ^0.5.13;
-
-
-
 contract ETH_Balancer_General_Zap_v2 is ReentrancyGuard, Ownable {
     using SafeMath for uint256;
     bool private stopped = false;
@@ -522,7 +515,8 @@ contract ETH_Balancer_General_Zap_v2 is ReentrancyGuard, Ownable {
         0x9424B1412450D0f8Fc2255FAf6046b98213B76Bd
     );
 
-    IuniswapFactory_ETH_Balancer_General_Zap_V2 public UniSwapFactoryAddress = IuniswapFactory_ETH_Balancer_General_Zap_V2(
+    IuniswapFactory_ETH_Balancer_General_Zap_V2 public UniSwapFactoryAddress
+    = IuniswapFactory_ETH_Balancer_General_Zap_V2(
         0xc0a47dFe034B400B47bDaD5FecDa2621de6c4d95
     );
 
