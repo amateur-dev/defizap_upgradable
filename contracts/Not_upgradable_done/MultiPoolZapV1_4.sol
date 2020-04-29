@@ -24,21 +24,22 @@ interface UniswapFactoryInterface {
 
 interface UniswapExchangeInterface {
     function tokenToEthTransferInput(uint256 tokens_sold, uint256 min_eth, uint256 deadline, address recipient) external returns (uint256  eth_bought);
+    function getTokenToEthInputPrice(uint256 tokens_sold) external view returns (uint256 eth_bought);
 }
 
 interface uniswapPoolZap {
     function LetsInvest(address _TokenContractAddress, address _towhomtoissue) external payable returns (uint256);
 }
 
-contract MultiPoolZapV1_3 is Ownable {
+contract MultiPoolZapV1_4 is Ownable {
     using SafeMath for uint;
-    
+
     uniswapPoolZap public uniswapPoolZapAddress;
     UniswapFactoryInterface public UniswapFactory;
     uint16 public goodwill;
     address payable public dzgoodwillAddress;
     mapping(address => uint256) private userBalance;
-    
+
     constructor(uint16 _goodwill, address payable _dzgoodwillAddress) public {
         goodwill = _goodwill;
         dzgoodwillAddress = _dzgoodwillAddress;
@@ -60,7 +61,7 @@ contract MultiPoolZapV1_3 is Ownable {
     {
         dzgoodwillAddress = _new_dzgoodwillAddress;
     }
-    
+
     function set_uniswapPoolZapAddress(address _uniswapPoolZapAddress) onlyOwner public {
         uniswapPoolZapAddress = uniswapPoolZap(_uniswapPoolZapAddress);
     }
@@ -68,36 +69,39 @@ contract MultiPoolZapV1_3 is Ownable {
     function set_UniswapFactory(address _UniswapFactory) onlyOwner public {
         UniswapFactory = UniswapFactoryInterface(_UniswapFactory);
     }
-    
+
     function multipleZapIn(address _IncomingTokenContractAddress, uint256 _IncomingTokenQty, address[] memory underlyingTokenAddresses, uint256[] memory respectiveWeightedValues) public payable {
-        
+
         uint totalWeights;
-        
         require(underlyingTokenAddresses.length == respectiveWeightedValues.length);
-        
         for(uint i=0;i<underlyingTokenAddresses.length;i++) {
             totalWeights = (totalWeights).add(respectiveWeightedValues[i]);
         }
-        
-        require(
-            IERC20(_IncomingTokenContractAddress).transferFrom(
-                msg.sender,
-                address(this),
-                _IncomingTokenQty
-            ),
-            "Error in transferring ERC20"
-        );
-        
-        uint256 ethBought = _token2Eth(
-          _IncomingTokenContractAddress,
-          _IncomingTokenQty,
-          address(this)
-        );
 
-        uint goodwillPortion = ((ethBought).mul(goodwill)).div(10000);
-        uint totalInvestable = (ethBought).sub(goodwillPortion);
+        uint256 eth2Trade;
+
+        if(_IncomingTokenContractAddress == address(0) && msg.value > 0) {
+            eth2Trade = msg.value;
+        } else {
+            require(
+                IERC20(_IncomingTokenContractAddress).transferFrom(
+                    msg.sender,
+                    address(this),
+                    _IncomingTokenQty
+                ),
+                "Error in transferring ERC20"
+            );
+            eth2Trade = _token2Eth(
+              _IncomingTokenContractAddress,
+              _IncomingTokenQty,
+              address(this)
+            );
+        }
+
+        uint goodwillPortion = ((eth2Trade).mul(goodwill)).div(10000);
+        uint totalInvestable = (eth2Trade).sub(goodwillPortion);
         uint totalLeftToBeInvested = totalInvestable;
-        
+
         require(address(dzgoodwillAddress).send(goodwillPortion));
 
         uint residualETH;
@@ -107,7 +111,7 @@ contract MultiPoolZapV1_3 is Ownable {
             totalLeftToBeInvested = (totalLeftToBeInvested).sub(((totalInvestable).mul(respectiveWeightedValues[i])).div(totalWeights));
             residualETH = (address(this).balance).sub(totalLeftToBeInvested);
         }
-        
+
         if(address(this).balance >= 250000000000000000){
             totalInvestable = address(this).balance;
             totalLeftToBeInvested = totalInvestable;
@@ -123,11 +127,11 @@ contract MultiPoolZapV1_3 is Ownable {
         userBalance[msg.sender] = address(this).balance;
         require (send_out_eth(msg.sender));
     }
-    
+
     function _token2Eth(
         address _FromTokenContractAddress,
         uint256 tokens2Trade,
-        address _toWhomToIssue 
+        address _toWhomToIssue
     ) internal returns (uint256 ethBought) {
 
             UniswapExchangeInterface FromUniSwapExchangeContractAddress
