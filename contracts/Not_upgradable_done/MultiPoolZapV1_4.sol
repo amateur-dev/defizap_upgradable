@@ -31,6 +31,11 @@ interface uniswapPoolZap {
     function LetsInvest(address _TokenContractAddress, address _towhomtoissue) external payable returns (uint256);
 }
 
+/**
+    @title Multiple Pool Zap
+    @author Zapper
+    @notice Use this contract to Add liquidity to Multiple Uniswap Pools at once using ETH or ERC20
+*/
 contract MultiPoolZapV1_4 is Ownable {
     using SafeMath for uint;
 
@@ -70,6 +75,13 @@ contract MultiPoolZapV1_4 is Ownable {
         UniswapFactory = UniswapFactoryInterface(_UniswapFactory);
     }
 
+    /**
+        @notice Add liquidity to Multiple Uniswap Pools at once using ETH or ERC20
+        @param _IncomingTokenContractAddress The token address for ERC20 being deposited. Input address(0) in case of ETH deposit.
+        @param _IncomingTokenQty Quantity of ERC20 being deposited. 0 in case of ETH deposit.
+        @param underlyingTokenAddresses Array of Token Addresses to which's Uniswap Pool to add liquidity to.
+        @param respectiveWeightedValues Array of Relative Ratios (corresponding to underlyingTokenAddresses) to proportionally distribute received ETH or ERC20 into various pools.
+    */
     function multipleZapIn(address _IncomingTokenContractAddress, uint256 _IncomingTokenQty, address[] memory underlyingTokenAddresses, uint256[] memory respectiveWeightedValues) public payable {
 
         uint totalWeights;
@@ -128,6 +140,13 @@ contract MultiPoolZapV1_4 is Ownable {
         require (send_out_eth(msg.sender));
     }
 
+    /**
+        @notice This function swaps ERC20 to ERC20 via Uniswap
+        @param _FromTokenContractAddress Address of Token to swap
+        @param tokens2Trade The quantity of tokens to swap
+        @param _toWhomToIssue Address of user to send the swapped ETH to
+        @return The amount of ETH Received.
+    */
     function _token2Eth(
         address _FromTokenContractAddress,
         uint256 tokens2Trade,
@@ -153,6 +172,11 @@ contract MultiPoolZapV1_4 is Ownable {
         require(ethBought > 0, "Error in swapping Eth: 1");
     }
 
+    /**
+        @notice This function sends the user's remaining ETH back to them.
+        @param _towhomtosendtheETH The Address of the user
+        @return Boolean corresponding to successful execution.
+    */
     function send_out_eth(address _towhomtosendtheETH) internal returns (bool) {
         require(userBalance[_towhomtosendtheETH] > 0);
         uint256 amount = userBalance[_towhomtosendtheETH];
