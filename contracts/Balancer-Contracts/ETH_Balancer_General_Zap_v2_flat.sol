@@ -450,7 +450,7 @@ contract ReentrancyGuard {
 // File: localhost/defizap/node_modules/@openzeppelin/contracts-ethereum-package/contracts/token/ERC20/IERC20.sol
 
 ///@author DeFiZap
-///@notice this contract enables entry into Balancer wETH pools using ETH.
+///@notice this contract enables entry into Balancer pools using ETH.
 
 // interface
 interface IWethToken_ETH_Balancer_General_Zap_V2 {
@@ -489,6 +489,11 @@ interface IuniswapFactory_ETH_Balancer_General_Zap_V2 {
 
 
 interface Iuniswap_ETH_Balancer_General_Zap_V2 {
+    function getEthToTokenInputPrice(uint256 eth_sold)
+        external
+        view
+        returns (uint256 tokens_bought);
+
     function ethToTokenSwapInput(uint256 min_tokens, uint256 deadline)
         external
         payable
@@ -506,11 +511,7 @@ interface Iuniswap_ETH_Balancer_General_Zap_V2 {
 pragma solidity ^0.5.13;
 
 
-/**
-@title Eth to Balancer Pool zap
-@author Zapper
-@notice This contract can be used for zapping in balancer pools through ether
-*/
+
 contract ETH_Balancer_General_Zap_v2 is ReentrancyGuard, Ownable {
     using SafeMath for uint256;
     bool private stopped = false;
@@ -542,8 +543,8 @@ contract ETH_Balancer_General_Zap_v2 is ReentrancyGuard, Ownable {
             _;
         }
     }
-    
-    
+
+
     /**
     @notice This function is used to invest in given balancer pool through eth
     @param _toWhomToIssue The user address
@@ -555,7 +556,7 @@ contract ETH_Balancer_General_Zap_v2 is ReentrancyGuard, Ownable {
         payable
         nonReentrant
         stopInEmergency
-        returns (uint256 balancerPoolTokensRec)
+        returns (uint256)
     {
         // TODO: TO MENTION THE FRONT-END TO DO THIS CHECK
         // require(
@@ -578,10 +579,15 @@ contract ETH_Balancer_General_Zap_v2 is ReentrancyGuard, Ownable {
                 UniSwapFactoryAddress.getExchange(_FromTokenContractAddress)
             );
 
+            uint256 minTokens = FromUniSwapExchangeContractAddress.getEthToTokenInputPrice(msg.value);
+            minTokens = SafeMath.div(
+                SafeMath.mul(minTokens, 99),
+                100
+            );
+
             returnedTokens = FromUniSwapExchangeContractAddress
                 .ethToTokenSwapInput
-                .value(msg.value)(1, SafeMath.add(now, 300));  
-                //FIXME FOR THE PARAMETER MINIMUM TOKENS, WE CAN USE THE UNISWAP'S FUNCTION GETETHTOTOKENPRICE AND THEN MULTIPLY IT BY 99% {INSTEAD OF PUTTING IT AS 1}
+                .value(msg.value)(minTokens, SafeMath.add(now, 300));
         }
 
         uint256 balancerTokens = _enter2Balancer(
@@ -727,7 +733,7 @@ contract ETH_Balancer_General_Zap_v2 is ReentrancyGuard, Ownable {
     function _weth2Token(uint256 eth2Wrap)
         internal
         returns (uint256 wrappedEth)
-    {   
+    {
         IWethToken_ETH_Balancer_General_Zap_V2(WethTokenAddress).deposit.value(
             eth2Wrap
         )();
