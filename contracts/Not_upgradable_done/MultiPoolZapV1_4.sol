@@ -92,9 +92,13 @@ contract MultiPoolZapV1_4 is Ownable {
 
         uint256 eth2Trade;
 
-        if(_IncomingTokenContractAddress == address(0) && msg.value > 0) {
+        if (msg.value > 0) {
+            require (_IncomingTokenContractAddress == address(0), "Incoming token address should be address(0)");
             eth2Trade = msg.value;
-        } else {
+        } else if(_IncomingTokenContractAddress == address(0) && msg.value == 0) {
+            revert("Please send ETH along with function call");
+        } else if(_IncomingTokenContractAddress != address(0)) {
+            require(msg.value == 0, "Cannot send Tokens and ETH at the same time");
             require(
                 IERC20(_IncomingTokenContractAddress).transferFrom(
                     msg.sender,
