@@ -41,23 +41,26 @@ contract MultiPoolZapV1_4 is Ownable {
 
     uniswapPoolZap public uniswapPoolZapAddress;
     UniswapFactoryInterface public UniswapFactory;
-    uint16 public goodwill;
+    uint16 public goodwillinBPS;
     address payable public dzgoodwillAddress;
     mapping(address => uint256) private userBalance;
+    
+    event internall(address);
+    event internalll(uint);
 
-    constructor(uint16 _goodwill, address payable _dzgoodwillAddress) public {
-        goodwill = _goodwill;
+    constructor(uint16 _goodwillinBPS, address payable _dzgoodwillAddress) public {
+        goodwillinBPS = _goodwillinBPS;
         dzgoodwillAddress = _dzgoodwillAddress;
         uniswapPoolZapAddress = uniswapPoolZap(0x97402249515994Cc0D22092D3375033Ad0ea438A);
         UniswapFactory = UniswapFactoryInterface(0xc0a47dFe034B400B47bDaD5FecDa2621de6c4d95);
     }
 
-    function set_new_goodwill(uint16 _new_goodwill) public onlyOwner {
+    function set_new_goodwillinBPS(uint16 _new_goodwillinBPS) public onlyOwner {
         require(
-            _new_goodwill > 0 && _new_goodwill < 10000,
+            _new_goodwillinBPS > 0 && _new_goodwillinBPS <= 10000,
             "GoodWill Value not allowed"
         );
-        goodwill = _new_goodwill;
+        goodwillinBPS = _new_goodwillinBPS;
     }
 
     function set_new_dzgoodwillAddress(address payable _new_dzgoodwillAddress)
@@ -83,21 +86,15 @@ contract MultiPoolZapV1_4 is Ownable {
         @param respectiveWeightedValues Array of Relative Ratios (corresponding to underlyingTokenAddresses) to proportionally distribute received ETH or ERC20 into various pools.
     */
     function multipleZapIn(address _IncomingTokenContractAddress, uint256 _IncomingTokenQty, address[] memory underlyingTokenAddresses, uint256[] memory respectiveWeightedValues) public payable {
-
-        uint totalWeights;
+        
         require(underlyingTokenAddresses.length == respectiveWeightedValues.length);
-        for(uint i=0;i<underlyingTokenAddresses.length;i++) {
-            totalWeights = (totalWeights).add(respectiveWeightedValues[i]);
-        }
 
         uint256 eth2Trade;
 
         if (msg.value > 0) {
-            require (_IncomingTokenContractAddress == address(0), "Incoming token address should be address(0)");
+            require (_IncomingTokenContractAddress == address(0x0), "Incoming token address should be address(0)");
             eth2Trade = msg.value;
-        } else if(_IncomingTokenContractAddress == address(0) && msg.value == 0) {
-            revert("Please send ETH along with function call");
-        } else if(_IncomingTokenContractAddress != address(0)) {
+        } else if(_IncomingTokenContractAddress != address(0x0)) {
             require(msg.value == 0, "Cannot send Tokens and ETH at the same time");
             require(
                 IERC20(_IncomingTokenContractAddress).transferFrom(
@@ -108,40 +105,30 @@ contract MultiPoolZapV1_4 is Ownable {
                 "Error in transferring ERC20"
             );
             eth2Trade = _token2Eth(
-              _IncomingTokenContractAddress,
-              _IncomingTokenQty,
-              address(this)
+            _IncomingTokenContractAddress,
+            _IncomingTokenQty,
+            address(this)
             );
+        } else if(_IncomingTokenContractAddress == address(0x0) && msg.value == 0) {
+            revert("Please send ETH or ERC along with function call");
+        }
+        uint totalInvestable;
+        if (goodwillinBPS > 0) {
+            uint goodwillPortion = ((eth2Trade).mul(goodwillinBPS)).div(10000);
+            totalInvestable = (eth2Trade).sub(goodwillPortion);
+            require(address(dzgoodwillAddress).send(goodwillPortion));
+        } else {
+            totalInvestable = eth2Trade;
         }
 
-        uint goodwillPortion = ((eth2Trade).mul(goodwill)).div(10000);
-        uint totalInvestable = (eth2Trade).sub(goodwillPortion);
-        uint totalLeftToBeInvested = totalInvestable;
-
-        require(address(dzgoodwillAddress).send(goodwillPortion));
-
-        uint residualETH;
-        for (uint i=0;i<underlyingTokenAddresses.length;i++) {
-            uint LPT = uniswapPoolZapAddress.LetsInvest.value((((totalInvestable).mul(respectiveWeightedValues[i])).div(totalWeights)+residualETH))(underlyingTokenAddresses[i], address(this));
-            IERC20(UniswapFactory.getExchange(address(underlyingTokenAddresses[i]))).transfer(msg.sender, LPT);
-            totalLeftToBeInvested = (totalLeftToBeInvested).sub(((totalInvestable).mul(respectiveWeightedValues[i])).div(totalWeights));
-            residualETH = (address(this).balance).sub(totalLeftToBeInvested);
-        }
-
-        if(address(this).balance >= 250000000000000000){
-            totalInvestable = address(this).balance;
-            totalLeftToBeInvested = totalInvestable;
-            residualETH = 0;
-            for (uint i=0;i<underlyingTokenAddresses.length;i++) {
-                uint LPT = uniswapPoolZapAddress.LetsInvest.value((((totalInvestable).mul(respectiveWeightedValues[i])).div(totalWeights)+residualETH))(underlyingTokenAddresses[i], address(this));
-                IERC20(UniswapFactory.getExchange(address(underlyingTokenAddresses[i]))).transfer(msg.sender, LPT);
-                totalLeftToBeInvested = (totalLeftToBeInvested).sub(((totalInvestable).mul(respectiveWeightedValues[i])).div(totalWeights));
-                residualETH = (address(this).balance).sub(totalLeftToBeInvested);
-            }
-        }
-
-        userBalance[msg.sender] = address(this).balance;
-        require (send_out_eth(msg.sender));
+        ZapIn(underlyingTokenAddresses, respectiveWeightedValues, totalInvestable);
+        // uint residualETHfrmZapr2;
+        // if(residualETHfrmZap >= 25000000000000000) {
+        //     residualETHfrmZapr2 = ZapIn(underlyingTokenAddresses, respectiveWeightedValues, totalWeights, residualETHfrmZap);
+        // }
+        
+        // userBalance[msg.sender] = residualETHfrmZap;
+        // require (send_out_eth(msg.sender));
     }
 
     /**
@@ -157,9 +144,8 @@ contract MultiPoolZapV1_4 is Ownable {
         address _toWhomToIssue
     ) internal returns (uint256 ethBought) {
 
-            UniswapExchangeInterface FromUniSwapExchangeContractAddress
-         = UniswapExchangeInterface(
-            UniswapFactory.getExchange(_FromTokenContractAddress)
+        UniswapExchangeInterface FromUniSwapExchangeContractAddress
+        = UniswapExchangeInterface(UniswapFactory.getExchange(_FromTokenContractAddress)
         );
 
         IERC20(_FromTokenContractAddress).approve(
@@ -174,6 +160,23 @@ contract MultiPoolZapV1_4 is Ownable {
             _toWhomToIssue
         );
         require(ethBought > 0, "Error in swapping Eth: 1");
+    }
+
+    function ZapIn(address[] memory addresses, uint256[] memory weights, uint totalI) public payable returns(uint) {
+        uint residualETH;
+        uint LPT = uniswapPoolZapAddress.LetsInvest.value((((totalI)).add(residualETH)))(addresses[0], address(this));
+        IERC20(UniswapFactory.getExchange(address(addresses[0]))).transfer(msg.sender, LPT);
+        // totalLeftToBeInvested = (totalLeftToBeInvested).sub(((totalI).mul(weights[0])).div(totalWeights));
+        return residualETH = (address(this).balance);
+        // for (uint i=0;i<underlyingTokenAddresses.length;i++) {
+        //     emit internall(underlyingTokenAddresses[i]);
+        //     emit internalll(respectiveWeightedValues[i]);
+        //     // uint LPT = uniswapPoolZapAddress.LetsInvest.value((((totalInvestable).mul(respectiveWeightedValues[i])).div(totalWeights)+residualETH))(underlyingTokenAddresses[i], address(this));
+        //     // IERC20(UniswapFactory.getExchange(address(underlyingTokenAddresses[i]))).transfer(msg.sender, LPT);
+        //     // totalLeftToBeInvested = (totalLeftToBeInvested).sub(((totalInvestable).mul(respectiveWeightedValues[i])).div(totalWeights));
+        //     // residualETH = (address(this).balance).sub(totalLeftToBeInvested);
+        // }
+        // return residualETH;
     }
 
     /**
