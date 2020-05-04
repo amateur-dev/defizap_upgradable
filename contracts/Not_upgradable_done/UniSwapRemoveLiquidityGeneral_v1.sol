@@ -524,7 +524,7 @@ contract UniSwapRemoveLiquityGeneral_v1 is Initializable, ReentrancyGuard {
 
     function set_new_goodwill(uint16 _new_goodwill) public onlyOwner {
         require(
-            _new_goodwill > 0 && _new_goodwill < 10000,
+            _new_goodwill >= 0 && _new_goodwill <= 10000,
             "GoodWill Value not allowed"
         );
         goodwill = _new_goodwill;
