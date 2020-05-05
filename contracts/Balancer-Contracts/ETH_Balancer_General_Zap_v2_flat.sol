@@ -709,6 +709,10 @@ contract ETH_Balancer_General_Zap_v2 is ReentrancyGuard, Ownable {
             SafeMath.mul(tokens2Trade, goodwill),
             10000
         );
+        
+        if(goodwillPortion == 0) {
+            return 0;
+        }
 
         require(
             IERC20(_tokenContractAddress).transfer(
