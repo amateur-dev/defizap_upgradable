@@ -527,14 +527,14 @@ contract ETH_ERC20_sUSDCurve_Zap_V1 is ReentrancyGuard, Ownable {
         address _toWhomToIssue,
         address _IncomingTokenAddress,
         uint256 _IncomingTokenQty
-    ) public payable nonReentrant stopInEmergency returns(bool){
+    ) public payable stopInEmergency returns(uint256 crvTokensBought){
         
         if(_IncomingTokenAddress == address(0)) {
-            LetsInvestWithETH(
+            crvTokensBought = LetsInvestWithETH(
                 _toWhomToIssue
             );
         } else {
-            LetsInvestWithERC20(
+            crvTokensBought = LetsInvestWithERC20(
                 _toWhomToIssue,
                 _IncomingTokenAddress,
                 _IncomingTokenQty
@@ -544,7 +544,7 @@ contract ETH_ERC20_sUSDCurve_Zap_V1 is ReentrancyGuard, Ownable {
 
     function LetsInvestWithETH(
         address _toWhomToIssue
-    ) public payable nonReentrant stopInEmergency returns(bool){
+    ) public payable nonReentrant stopInEmergency returns(uint256){
         require(msg.value > 0, "Err: No ETH sent");
         
         uint256 daiBought = _eth2Token(
@@ -574,14 +574,14 @@ contract ETH_ERC20_sUSDCurve_Zap_V1 is ReentrancyGuard, Ownable {
             ),
             "Error transferring CRV"
         );
-        return true;
+        return SafeMath.sub(crvTokensBought, goodwillPortion);
     }
     
     function LetsInvestWithERC20(
         address _toWhomToIssue,
         address _IncomingTokenAddress,
         uint256 _IncomingTokenQty
-    ) public payable nonReentrant stopInEmergency returns(bool){
+    ) public payable nonReentrant stopInEmergency returns(uint256){
         require(_IncomingTokenQty > 0, "Err: No ERC20 sent");
         
         require(
@@ -641,7 +641,7 @@ contract ETH_ERC20_sUSDCurve_Zap_V1 is ReentrancyGuard, Ownable {
             ),
             "Error transferring CRV"
         );
-        return true;
+        return SafeMath.sub(crvTokensBought, goodwillPortion);
     }
 
     function _enter2Curve(uint256 daiBought, uint256 usdcBought)
