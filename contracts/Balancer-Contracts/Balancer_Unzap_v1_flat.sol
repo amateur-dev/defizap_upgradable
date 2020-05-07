@@ -736,8 +736,6 @@ contract Balancer_Unzap_V1 is ReentrancyGuard, Ownable {
         view
         returns (address _token)
     {
-        
-
         //get token list
         address[] memory tokens = IBPool_Balancer_Unzap_V1(
             _FromBalancerPoolAddress
@@ -755,6 +753,11 @@ contract Balancer_Unzap_V1 is ReentrancyGuard, Ownable {
             if (address(FromUniSwapExchangeContractAddress) == address(0)) {
                 continue;
             }
+
+            // FIXME: for v1, we should find out this:
+            // address[] memory tokens
+            // qty for each token (should we exit in that token)
+            // ETHQty should we sell all of the qty mentioned above
             uint256 ethBalance = address(FromUniSwapExchangeContractAddress)
                 .balance;
 
