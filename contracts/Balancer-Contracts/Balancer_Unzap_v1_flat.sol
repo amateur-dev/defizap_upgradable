@@ -736,13 +736,7 @@ contract Balancer_Unzap_V1 is ReentrancyGuard, Ownable {
         view
         returns (address _token)
     {
-        if (
-            IBPool_Balancer_Unzap_V1(_FromBalancerPoolAddress).isBound(
-                WethTokenAddress
-            )
-        ) {
-            return WethTokenAddress;
-        }
+        
 
         //get token list
         address[] memory tokens = IBPool_Balancer_Unzap_V1(
