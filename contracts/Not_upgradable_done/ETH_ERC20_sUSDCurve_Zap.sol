@@ -518,12 +518,6 @@ contract ETH_ERC20_sUSDCurve_Zap_V1 is ReentrancyGuard, Ownable {
         }
     }
 
-    /* 
-    FIXME: while this amount is good enough, during the lifetime of the contract, this amount will slowly be depleting
-    hence, we should be doing some check in the contract to call this if needed; or we must be calling it in the JS if needed.
-    Please look into this.
-    */
-
     function approveToken() public {
         IERC20(DaiTokenAddress).approve(sUSDCurveExchangeAddress, uint256(-1));
         IERC20(UsdcTokenAddress).approve(sUSDCurveExchangeAddress, uint256(-1));
@@ -550,7 +544,7 @@ contract ETH_ERC20_sUSDCurve_Zap_V1 is ReentrancyGuard, Ownable {
 
     function ZapInWithETH(
         address _toWhomToIssue
-    ) internal payable nonReentrant stopInEmergency returns(uint256){
+    ) internal nonReentrant stopInEmergency returns(uint256){
         require(msg.value > 0, "Err: No ETH sent");
         
         uint256 daiBought = _eth2Token(
@@ -562,6 +556,11 @@ contract ETH_ERC20_sUSDCurve_Zap_V1 is ReentrancyGuard, Ownable {
             (msg.value).div(2)
         );
         
+        // check allowance not depleted
+        if(IERC20(DaiTokenAddress).allowance(address(this), sUSDCurveExchangeAddress) <= daiBought) {
+            approveToken();
+        }
+
         uint256 crvTokensBought = _enter2Curve(daiBought, usdcBought);
         
         uint256 goodwillPortion = SafeMath.div(
@@ -582,16 +581,14 @@ contract ETH_ERC20_sUSDCurve_Zap_V1 is ReentrancyGuard, Ownable {
         );
         return SafeMath.sub(crvTokensBought, goodwillPortion);
     }
-    /**
-    FIXME: Does this have to be payable? can you test this contract without making it payable
-    */
+
     function ZapInWithERC20(
         address _toWhomToIssue,
         address _IncomingTokenAddress,
         uint256 _IncomingTokenQty
     ) internal nonReentrant stopInEmergency returns(uint256){
         require(_IncomingTokenQty > 0, "Err: No ERC20 sent");
-        
+
         require(
                 IERC20(_IncomingTokenAddress).transferFrom(
                     msg.sender,
@@ -631,6 +628,11 @@ contract ETH_ERC20_sUSDCurve_Zap_V1 is ReentrancyGuard, Ownable {
             );   
         }
         
+        // check allowance not depleted
+        if(IERC20(DaiTokenAddress).allowance(address(this), sUSDCurveExchangeAddress) <= daiBought) {
+            approveToken();
+        }
+
         uint256 crvTokensBought = _enter2Curve(daiBought, usdcBought);
         
         uint256 goodwillPortion = SafeMath.div(
@@ -656,13 +658,9 @@ contract ETH_ERC20_sUSDCurve_Zap_V1 is ReentrancyGuard, Ownable {
         internal
         returns (uint256 crvTokensBought)
     {
-        /**
-        FIXME: Why create a new varaible? can we not do IsUSDCurveExchange(sUSDCurveExchangeAddress) everywhere below
-         */
-        IsUSDCurveExchange sUSDCurveExchange = IsUSDCurveExchange(sUSDCurveExchangeAddress);
 
         // 0 = DAI, 1 = USDC, 2 = USDT, 3 = sUSD
-        sUSDCurveExchange.add_liquidity(
+        IsUSDCurveExchange(sUSDCurveExchangeAddress).add_liquidity(
             [daiBought, usdcBought, 0, 0],
             0
         );
