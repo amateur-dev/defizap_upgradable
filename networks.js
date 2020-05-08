@@ -1,5 +1,14 @@
 require('dotenv').config();
 
+const ethers = require('ethers');
+const provider = ethers.getDefaultProvider();
+
+let currentBestGasPrice;
+let gasPrice = async () => {
+  currentBestGasPrice = await provider.getGasPrice();
+} 
+
+
 const HDWalletProvider = require('@truffle/hdwallet-provider');
 const infuraProjectId = process.env.INFURA_PROJECT_ID;
 
@@ -9,7 +18,6 @@ module.exports = {
       protocol: 'http',
       host: '0.0.0.0',
       port: 8545,
-      gas: 5000000,
       gasPrice: 5e9,
       networkId: '*',
     },
@@ -20,7 +28,7 @@ module.exports = {
     mainnet: {
       provider: () => new HDWalletProvider(process.env.PrivateKey, "https://mainnet.infura.io/v3/" + infuraProjectId),
       networkId: 1,       // mainnet's id
-      gasPrice: 5000000000,
+      gasPrice: currentBestGasPrice,
     },
     rinkeby: {
       provider: () => new HDWalletProvider(process.env.PrivateKey, "https://rinkeby.infura.io/v3/" + infuraProjectId),
