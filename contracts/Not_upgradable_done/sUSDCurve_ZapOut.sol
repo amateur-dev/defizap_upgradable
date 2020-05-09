@@ -870,6 +870,13 @@ contract sUSDCurve_ZapOut is ReentrancyGuard, Ownable {
         dzgoodwillAddress = _new_dzgoodwillAddress;
     }
 
+    function set_new_sUSDTokenAddress(address _new_sUSDTokenAddress)
+        public
+        onlyOwner
+    {
+        sUsdTokenAddress = _new_sUSDTokenAddress;
+    }
+
     // - to Pause the contract
     function toggleContractActive() public onlyOwner {
         stopped = !stopped;
