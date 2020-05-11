@@ -430,8 +430,7 @@ contract ReentrancyGuard {
     }
 }
 
-
-// File: browser/ETH_Balancer_General_Zap_v1.sol
+// File: browser/ETH_Balancer_General_Zap_v2.sol
 
 // Copyright (C) 2020 defizap, dipeshsukhani, nodarjanashia, suhailg
 
@@ -454,6 +453,7 @@ contract ReentrancyGuard {
 
 pragma solidity ^0.5.13;
 
+
 interface IWethToken_ETH_Balancer_General_Zap_V2 {
     function deposit() external payable;
 
@@ -462,9 +462,11 @@ interface IWethToken_ETH_Balancer_General_Zap_V2 {
     function withdraw(uint256 amount, address user) external;
 }
 
+
 interface IBFactory_ETH_Balancer_General_Zap_V2 {
     function isBPool(address b) external view returns (bool);
 }
+
 
 interface IBPool_ETH_Balancer_General_Zap_V2 {
     function joinswapExternAmountIn(
@@ -476,7 +478,30 @@ interface IBPool_ETH_Balancer_General_Zap_V2 {
     function isBound(address t) external view returns (bool);
 
     function getFinalTokens() external view returns (address[] memory tokens);
+
+    function totalSupply() external view returns (uint256);
+
+    function getDenormalizedWeight(address token)
+        external
+        view
+        returns (uint256);
+
+    function getTotalDenormalizedWeight() external view returns (uint256);
+
+    function getSwapFee() external view returns (uint256);
+
+    function calcPoolOutGivenSingleIn(
+        uint256 tokenBalanceIn,
+        uint256 tokenWeightIn,
+        uint256 poolSupply,
+        uint256 totalWeight,
+        uint256 tokenAmountIn,
+        uint256 swapFee
+    ) external pure returns (uint256 poolAmountOut);
+
+    function getBalance(address token) external view returns (uint256);
 }
+
 
 interface IuniswapFactory_ETH_Balancer_General_Zap_V2 {
     function getExchange(address token)
@@ -484,6 +509,7 @@ interface IuniswapFactory_ETH_Balancer_General_Zap_V2 {
         view
         returns (address exchange);
 }
+
 
 interface Iuniswap_ETH_Balancer_General_Zap_V2 {
     function getEthToTokenInputPrice(uint256 eth_sold)
@@ -504,6 +530,7 @@ interface Iuniswap_ETH_Balancer_General_Zap_V2 {
         external
         returns (bool success);
 }
+
 
 contract ETH_Balancer_General_Zap_v2 is ReentrancyGuard, Ownable {
     using SafeMath for uint256;
@@ -538,7 +565,6 @@ contract ETH_Balancer_General_Zap_v2 is ReentrancyGuard, Ownable {
         }
     }
 
-
     /**
     @notice This function is used to invest in given balancer pool through eth
     @param _toWhomToIssue The user address
@@ -552,37 +578,25 @@ contract ETH_Balancer_General_Zap_v2 is ReentrancyGuard, Ownable {
         stopInEmergency
         returns (uint256)
     {
-        // TODO: TO MENTION THE FRONT-END TO DO THIS CHECK
-        // require(
-        //     BalancerFactory.isBPool(_ToBalancerPoolAddress),
-        //     "Invalid Balancer Pool"
-        // );
-
         address _FromTokenContractAddress = _getBestDeal(
-            _ToBalancerPoolAddress
+            _ToBalancerPoolAddress,
+            msg.value
         );
 
         uint256 returnedTokens;
 
-        if (address(_FromTokenContractAddress) == address(WethTokenAddress)) {
-            returnedTokens = _weth2Token(msg.value);
-        } else {
+        Iuniswap_ETH_Balancer_General_Zap_V2 FromUniSwapExchangeContractAddress
+        = Iuniswap_ETH_Balancer_General_Zap_V2(
+            UniSwapFactoryAddress.getExchange(_FromTokenContractAddress)
+        );
 
-            Iuniswap_ETH_Balancer_General_Zap_V2 FromUniSwapExchangeContractAddress
-            = Iuniswap_ETH_Balancer_General_Zap_V2(
-                UniSwapFactoryAddress.getExchange(_FromTokenContractAddress)
-            );
+        uint256 minTokens = FromUniSwapExchangeContractAddress
+            .getEthToTokenInputPrice(msg.value);
+        minTokens = SafeMath.div(SafeMath.mul(minTokens, 99), 100);
 
-            uint256 minTokens = FromUniSwapExchangeContractAddress.getEthToTokenInputPrice(msg.value);
-            minTokens = SafeMath.div(
-                SafeMath.mul(minTokens, 99),
-                100
-            );
-
-            returnedTokens = FromUniSwapExchangeContractAddress
-                .ethToTokenSwapInput
-                .value(msg.value)(minTokens, SafeMath.add(now, 300));
-        }
+        returnedTokens = FromUniSwapExchangeContractAddress
+            .ethToTokenSwapInput
+            .value(msg.value)(minTokens, SafeMath.add(now, 300));
 
         uint256 balancerTokens = _enter2Balancer(
             returnedTokens,
@@ -609,9 +623,10 @@ contract ETH_Balancer_General_Zap_v2 is ReentrancyGuard, Ownable {
     /**
     @notice This function finds best token from the final tokens of balancer pool
     @param _ToBalancerPoolAddress The address of balancer pool to zap in
+    @param eth_sold The amount of eth to invest
     @return The token address having max liquidity
      */
-    function _getBestDeal(address _ToBalancerPoolAddress)
+    function _getBestDeal(address _ToBalancerPoolAddress, uint256 eth_sold)
         internal
         view
         returns (address _token)
@@ -619,38 +634,85 @@ contract ETH_Balancer_General_Zap_v2 is ReentrancyGuard, Ownable {
         //get token list
         address[] memory tokens = IBPool_ETH_Balancer_General_Zap_V2(
             _ToBalancerPoolAddress
-        )
-            .getFinalTokens();
+        ).getFinalTokens();
 
-        if (
-            IBPool_ETH_Balancer_General_Zap_V2(_ToBalancerPoolAddress).isBound(
-                WethTokenAddress
-            )
-        ) {
-            return WethTokenAddress;
-        }
-
-        uint256 maxEthBalance;
+        uint256 maxBPT;
 
         for (uint256 index = 0; index < tokens.length; index++) {
 
             Iuniswap_ETH_Balancer_General_Zap_V2 FromUniSwapExchangeContractAddress
-            = Iuniswap_ETH_Balancer_General_Zap_V2(UniSwapFactoryAddress.getExchange(
-                tokens[index]
-            ));
+            = Iuniswap_ETH_Balancer_General_Zap_V2(
+                UniSwapFactoryAddress.getExchange(tokens[index])
+            );
 
             if (address(FromUniSwapExchangeContractAddress) == address(0)) {
                 continue;
             }
-            uint256 ethBalance = address(FromUniSwapExchangeContractAddress)
-                .balance;
 
-            //get max eth balance exchange
-            if (maxEthBalance < ethBalance) {
-                maxEthBalance = ethBalance;
+            //get qty of tokens
+            uint256 expectedTokens = Iuniswap_ETH_Balancer_General_Zap_V2(
+                FromUniSwapExchangeContractAddress
+            ).getEthToTokenInputPrice(eth_sold);
+
+            //get bpt for given tokens
+            uint256 expectedBPT = getToken2BPT(
+                _ToBalancerPoolAddress,
+                expectedTokens,
+                tokens[index]
+            );
+
+            //get token giving max BPT
+            if (maxBPT < expectedBPT) {
+                maxBPT = expectedBPT;
                 _token = tokens[index];
             }
         }
+    }
+
+    /**
+    @notice Function gives the expected amount of pool tokens on investing
+    @param _ToBalancerPoolAddress Address of balancer pool to zapin
+    @param _IncomingERC The amount of ERC to invest
+    @param _FromToken Address of token to zap in with
+    @return Amount of BPT token
+     */
+    function getToken2BPT(
+        address _ToBalancerPoolAddress,
+        uint256 _IncomingERC,
+        address _FromToken
+    ) internal view returns (uint256 tokensReturned) {
+        uint256 totalSupply = IBPool_ETH_Balancer_General_Zap_V2(
+            _ToBalancerPoolAddress
+        )
+            .totalSupply();
+        uint256 swapFee = IBPool_ETH_Balancer_General_Zap_V2(
+            _ToBalancerPoolAddress
+        )
+            .getSwapFee();
+        uint256 totalWeight = IBPool_ETH_Balancer_General_Zap_V2(
+            _ToBalancerPoolAddress
+        )
+            .getTotalDenormalizedWeight();
+        uint256 balance = IBPool_ETH_Balancer_General_Zap_V2(
+            _ToBalancerPoolAddress
+        )
+            .getBalance(_FromToken);
+        uint256 denorm = IBPool_ETH_Balancer_General_Zap_V2(
+            _ToBalancerPoolAddress
+        )
+            .getDenormalizedWeight(_FromToken);
+
+        tokensReturned = IBPool_ETH_Balancer_General_Zap_V2(
+            _ToBalancerPoolAddress
+        )
+            .calcPoolOutGivenSingleIn(
+            balance,
+            denorm,
+            totalSupply,
+            totalWeight,
+            _IncomingERC,
+            swapFee
+        );
     }
 
     /**
@@ -709,8 +771,8 @@ contract ETH_Balancer_General_Zap_v2 is ReentrancyGuard, Ownable {
             SafeMath.mul(tokens2Trade, goodwill),
             10000
         );
-        
-        if(goodwillPortion == 0) {
+
+        if (goodwillPortion == 0) {
             return 0;
         }
 
