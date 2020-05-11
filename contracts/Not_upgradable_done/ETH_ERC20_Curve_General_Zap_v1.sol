@@ -525,10 +525,16 @@ contract ETH_ERC20_Curve_General_Zap_V1 is ReentrancyGuard, Ownable {
         0x3B3Ac5386837Dc563660FB6a0937DFAa5924333B
     );
     
+    mapping(address => address) internal exchange2Token;
+    
+    event wrappedTokens(uint256 wrappeDAI, uint256 wrappedUSDC);
 
     constructor(uint16 _goodwill, address _dzgoodwillAddress) public {
         goodwill = _goodwill;
         dzgoodwillAddress = _dzgoodwillAddress;
+        exchange2Token[sUSDCurveExchangeAddress] = sUSDCurvePoolTokenAddress;
+        exchange2Token[yCurveExchangeAddress] = yCurvePoolTokenAddress;
+        exchange2Token[bUSDCurveExchangeAddress] = bUSDCurvePoolTokenAddress;
         approveToken();
     }
 
@@ -604,14 +610,7 @@ contract ETH_ERC20_Curve_General_Zap_V1 is ReentrancyGuard, Ownable {
             10000
         );
         
-        address poolTokenAddress;
-        
-        if(_curvePoolExchangeAddress == sUSDCurveExchangeAddress)
-            poolTokenAddress = sUSDCurvePoolTokenAddress;
-        else if(_curvePoolExchangeAddress == yCurveExchangeAddress)
-            poolTokenAddress = yCurvePoolTokenAddress;
-        else if(_curvePoolExchangeAddress == bUSDCurveExchangeAddress)
-            poolTokenAddress = bUSDCurvePoolTokenAddress;
+        address poolTokenAddress = exchange2Token[_curvePoolExchangeAddress];
         
         require(
             IERC20(poolTokenAddress).transfer(dzgoodwillAddress, goodwillPortion),
@@ -674,14 +673,7 @@ contract ETH_ERC20_Curve_General_Zap_V1 is ReentrancyGuard, Ownable {
             10000
         );
         
-        address poolTokenAddress;
-        
-        if(_curvePoolExchangeAddress == sUSDCurveExchangeAddress)
-            poolTokenAddress = sUSDCurvePoolTokenAddress;
-        else if(_curvePoolExchangeAddress == yCurveExchangeAddress)
-            poolTokenAddress = yCurvePoolTokenAddress;
-        else if(_curvePoolExchangeAddress == bUSDCurveExchangeAddress)
-            poolTokenAddress = bUSDCurvePoolTokenAddress;
+        address poolTokenAddress = exchange2Token[_curvePoolExchangeAddress];
         
         require(
             IERC20(poolTokenAddress).transfer(dzgoodwillAddress, goodwillPortion),
@@ -715,12 +707,14 @@ contract ETH_ERC20_Curve_General_Zap_V1 is ReentrancyGuard, Ownable {
             daiBought = _wrapYTokens(daiBought, yDAI);
             usdcBought = _wrapYTokens(usdcBought, yUSDC);
         }
+        emit wrappedTokens(daiBought, usdcBought);
         // 0 = DAI, 1 = USDC, 2 = USDT, 3 = TUSD/sUSD
         ICurveExchange(_curvePoolExchangeAddress).add_liquidity(
             [daiBought, usdcBought, 0, 0],
             0
         );
-        crvTokensBought = IERC20(_curvePoolExchangeAddress).balanceOf(address(this));
+        address poolTokenAddress = exchange2Token[_curvePoolExchangeAddress];
+        crvTokensBought = IERC20(poolTokenAddress).balanceOf(address(this));
         require(crvTokensBought > 0, "Error swapping to CRV");
     }
 
