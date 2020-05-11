@@ -603,14 +603,23 @@ contract ETH_ERC20_Curve_General_Zap_V1 is ReentrancyGuard, Ownable {
             SafeMath.mul(crvTokensBought, goodwill),
             10000
         );
-        //TODO addresses for pool tokens need to be resolved from _curvePoolExchangeAddress
+        
+        address poolTokenAddress;
+        
+        if(_curvePoolExchangeAddress == sUSDCurveExchangeAddress)
+            poolTokenAddress = sUSDCurvePoolTokenAddress;
+        else if(_curvePoolExchangeAddress == yCurveExchangeAddress)
+            poolTokenAddress = yCurvePoolTokenAddress;
+        else if(_curvePoolExchangeAddress == bUSDCurveExchangeAddress)
+            poolTokenAddress = bUSDCurvePoolTokenAddress;
+        
         require(
-            IERC20(yCurvePoolTokenAddress).transfer(dzgoodwillAddress, goodwillPortion),
+            IERC20(poolTokenAddress).transfer(dzgoodwillAddress, goodwillPortion),
             "Error transferring goodwill"
         );
         
         require(
-            IERC20(yCurvePoolTokenAddress).transfer( 
+            IERC20(poolTokenAddress).transfer( 
                 _toWhomToIssue,
                 SafeMath.sub(crvTokensBought, goodwillPortion)
             ),
@@ -664,13 +673,23 @@ contract ETH_ERC20_Curve_General_Zap_V1 is ReentrancyGuard, Ownable {
             SafeMath.mul(crvTokensBought, goodwill),
             10000
         );
+        
+        address poolTokenAddress;
+        
+        if(_curvePoolExchangeAddress == sUSDCurveExchangeAddress)
+            poolTokenAddress = sUSDCurvePoolTokenAddress;
+        else if(_curvePoolExchangeAddress == yCurveExchangeAddress)
+            poolTokenAddress = yCurvePoolTokenAddress;
+        else if(_curvePoolExchangeAddress == bUSDCurveExchangeAddress)
+            poolTokenAddress = bUSDCurvePoolTokenAddress;
+        
         require(
-            IERC20(yCurvePoolTokenAddress).transfer(dzgoodwillAddress, goodwillPortion),
+            IERC20(poolTokenAddress).transfer(dzgoodwillAddress, goodwillPortion),
             "Error transferring goodwill"
         );
         
         require(
-            IERC20(yCurvePoolTokenAddress).transfer(
+            IERC20(poolTokenAddress).transfer( 
                 _toWhomToIssue,
                 SafeMath.sub(crvTokensBought, goodwillPortion)
             ),
@@ -760,7 +779,7 @@ contract ETH_ERC20_Curve_General_Zap_V1 is ReentrancyGuard, Ownable {
         );
         goodwill = _new_goodwill;
     }
-
+    
     function set_new_dzgoodwillAddress(address _new_dzgoodwillAddress)
         public
         onlyOwner
