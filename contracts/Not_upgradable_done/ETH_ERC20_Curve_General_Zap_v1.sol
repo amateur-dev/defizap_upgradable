@@ -497,14 +497,8 @@ contract ETH_ERC20_Curve_General_Zap_V1 is ReentrancyGuard, Ownable {
     address public DaiTokenAddress = address(
         0x6B175474E89094C44Da98b954EedeAC495271d0F
     );
-    address public yDAI = address(
-        0xC2cB1040220768554cf699b0d863A3cd4324ce32
-    );
     address public UsdcTokenAddress = address(
         0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48
-    );
-    address public yUSDC = address(
-        0x26EA744E5B887E5205727f55dFBE8685e3b21951
     );
     address public sUSDCurveExchangeAddress = address(
         0xA5407eAE9Ba41422680e2e00537571bcC53efBfD
@@ -526,8 +520,6 @@ contract ETH_ERC20_Curve_General_Zap_V1 is ReentrancyGuard, Ownable {
     );
     
     mapping(address => address) internal exchange2Token;
-    
-    event wrappedTokens(uint256 wrappeDAI, uint256 wrappedUSDC);
 
     constructor(uint16 _goodwill, address _dzgoodwillAddress) public {
         goodwill = _goodwill;
@@ -548,15 +540,13 @@ contract ETH_ERC20_Curve_General_Zap_V1 is ReentrancyGuard, Ownable {
     }
 
     function approveToken() public {
-      IERC20(DaiTokenAddress).approve(yDAI, uint(-1)); 
       IERC20(DaiTokenAddress).approve(sUSDCurveExchangeAddress, uint256(-1));
-      IERC20(yDAI).approve(yCurveExchangeAddress, uint(-1));
-      IERC20(yDAI).approve(bUSDCurveExchangeAddress, uint(-1));
+      IERC20(DaiTokenAddress).approve(yCurveExchangeAddress, uint(-1));
+      IERC20(DaiTokenAddress).approve(bUSDCurveExchangeAddress, uint(-1));
       
-      IERC20(UsdcTokenAddress).approve(yUSDC, uint(-1)); 
       IERC20(UsdcTokenAddress).approve(sUSDCurveExchangeAddress, uint256(-1));
-      IERC20(yUSDC).approve(yCurveExchangeAddress, uint(-1));
-      IERC20(yUSDC).approve(bUSDCurveExchangeAddress, uint(-1));
+      IERC20(UsdcTokenAddress).approve(yCurveExchangeAddress, uint(-1));
+      IERC20(UsdcTokenAddress).approve(bUSDCurveExchangeAddress, uint(-1));
     }
     
     function ZapIn(
@@ -591,7 +581,7 @@ contract ETH_ERC20_Curve_General_Zap_V1 is ReentrancyGuard, Ownable {
     function ZapInWithETH(
         address _toWhomToIssue,
         address _curvePoolExchangeAddress
-    ) internal nonReentrant stopInEmergency returns(uint256){
+    ) internal nonReentrant stopInEmergency returns(uint256 crvTokensBought){
         require(msg.value > 0, "Err: No ETH sent");
         
         uint256 daiBought = _eth2Token(
@@ -603,28 +593,7 @@ contract ETH_ERC20_Curve_General_Zap_V1 is ReentrancyGuard, Ownable {
             (msg.value).div(2)
         );
         
-        uint256 crvTokensBought = _enter2Curve(daiBought, usdcBought, _curvePoolExchangeAddress);
-        
-        uint256 goodwillPortion = SafeMath.div(
-            SafeMath.mul(crvTokensBought, goodwill),
-            10000
-        );
-        
-        address poolTokenAddress = exchange2Token[_curvePoolExchangeAddress];
-        
-        require(
-            IERC20(poolTokenAddress).transfer(dzgoodwillAddress, goodwillPortion),
-            "Error transferring goodwill"
-        );
-        
-        require(
-            IERC20(poolTokenAddress).transfer( 
-                _toWhomToIssue,
-                SafeMath.sub(crvTokensBought, goodwillPortion)
-            ),
-            "Error transferring CRV"
-        );
-        return SafeMath.sub(crvTokensBought, goodwillPortion);
+        crvTokensBought = _enter2Curve(_toWhomToIssue, daiBought, usdcBought, _curvePoolExchangeAddress);
     }
 
     function ZapInWithERC20(
@@ -632,7 +601,7 @@ contract ETH_ERC20_Curve_General_Zap_V1 is ReentrancyGuard, Ownable {
         address _IncomingTokenAddress,
         address _curvePoolExchangeAddress,
         uint256 _IncomingTokenQty
-    ) internal nonReentrant stopInEmergency returns(uint256){
+    ) internal nonReentrant stopInEmergency returns(uint256 crvTokensBought){
         require(_IncomingTokenQty > 0, "Err: No ERC20 sent");
 
         require(
@@ -666,14 +635,27 @@ contract ETH_ERC20_Curve_General_Zap_V1 is ReentrancyGuard, Ownable {
             );   
         }
         
-        uint256 crvTokensBought = _enter2Curve(daiBought, usdcBought, _curvePoolExchangeAddress);
+        crvTokensBought = _enter2Curve(_toWhomToIssue, daiBought, usdcBought, _curvePoolExchangeAddress);
+    }
+
+    function _enter2Curve(address _toWhomToIssue, uint256 daiBought, uint256 usdcBought, address _curvePoolExchangeAddress)
+        internal
+        returns (uint256 crvTokensBought)
+    {
+
+        // 0 = DAI, 1 = USDC, 2 = USDT, 3 = TUSD/sUSD
+        ICurveExchange(_curvePoolExchangeAddress).add_liquidity(
+            [daiBought, usdcBought, 0, 0],
+            0
+        );
+        address poolTokenAddress = exchange2Token[_curvePoolExchangeAddress];
+        crvTokensBought = IERC20(poolTokenAddress).balanceOf(address(this));
+        require(crvTokensBought > 0, "Error swapping to CRV");
         
         uint256 goodwillPortion = SafeMath.div(
             SafeMath.mul(crvTokensBought, goodwill),
             10000
         );
-        
-        address poolTokenAddress = exchange2Token[_curvePoolExchangeAddress];
         
         require(
             IERC20(poolTokenAddress).transfer(dzgoodwillAddress, goodwillPortion),
@@ -687,35 +669,6 @@ contract ETH_ERC20_Curve_General_Zap_V1 is ReentrancyGuard, Ownable {
             ),
             "Error transferring CRV"
         );
-        return SafeMath.sub(crvTokensBought, goodwillPortion);
-    }
-    
-    function _wrapYTokens(uint256 tokenQty, address yTokenAddress) 
-        internal 
-        returns (uint256 yTokensWraped) 
-    {
-        yERC20(yTokenAddress).deposit(tokenQty);
-        yTokensWraped = IERC20(yTokenAddress).balanceOf(address(this));
-        require(yTokensWraped > 0, "Error wrapping yToken");
-    }
-
-    function _enter2Curve(uint256 daiBought, uint256 usdcBought, address _curvePoolExchangeAddress)
-        internal
-        returns (uint256 crvTokensBought)
-    {
-        if(_curvePoolExchangeAddress == yCurveExchangeAddress || _curvePoolExchangeAddress == bUSDCurveExchangeAddress){
-            daiBought = _wrapYTokens(daiBought, yDAI);
-            usdcBought = _wrapYTokens(usdcBought, yUSDC);
-        }
-        emit wrappedTokens(daiBought, usdcBought);
-        // 0 = DAI, 1 = USDC, 2 = USDT, 3 = TUSD/sUSD
-        ICurveExchange(_curvePoolExchangeAddress).add_liquidity(
-            [daiBought, usdcBought, 0, 0],
-            0
-        );
-        address poolTokenAddress = exchange2Token[_curvePoolExchangeAddress];
-        crvTokensBought = IERC20(poolTokenAddress).balanceOf(address(this));
-        require(crvTokensBought > 0, "Error swapping to CRV");
     }
 
     function _eth2Token(address _ToTokenContractAddress, uint256 ethReceived)
