@@ -583,7 +583,8 @@ contract ERC20_Balancer_General_V1 is ReentrancyGuard, Ownable {
         //transfer goodwill
         uint256 goodwillPortion = _transferGoodwill(
             _FromTokenContractAddress,
-            _IncomingERC
+            _IncomingERC,
+            msg.sender
         );
 
         //transfer remaining tokens to contract
@@ -656,13 +657,14 @@ contract ERC20_Balancer_General_V1 is ReentrancyGuard, Ownable {
         //transfer goodwill
         uint256 goodwillPortion = _transferGoodwill(
             _FromTokenContractAddress,
-            _IncomingERC
+            _IncomingERC,
+            _toWhomToIssue
         );
 
         //transfer remaining tokens to contract
         require(
             IERC20(_FromTokenContractAddress).transferFrom(
-                msg.sender,
+                _toWhomToIssue,
                 address(this),
                 SafeMath.sub(_IncomingERC, goodwillPortion)
             ),
@@ -711,11 +713,13 @@ contract ERC20_Balancer_General_V1 is ReentrancyGuard, Ownable {
     @notice This function is used to calculate and transfer goodwill
     @param _tokenContractAddress Token in which goodwill is deducted
     @param tokens2Trade The total amount of tokens to be zapped in
+    @param _toWhomToIssue The user address who want to invest
     @return The quantity of goodwill deducted
      */
     function _transferGoodwill(
         address _tokenContractAddress,
-        uint256 tokens2Trade
+        uint256 tokens2Trade,
+        address _toWhomToIssue
     ) internal returns (uint256 goodwillPortion) {
         goodwillPortion = SafeMath.div(
             SafeMath.mul(tokens2Trade, goodwill),
@@ -728,7 +732,7 @@ contract ERC20_Balancer_General_V1 is ReentrancyGuard, Ownable {
 
         require(
             IERC20(_tokenContractAddress).transferFrom(
-                msg.sender,
+                _toWhomToIssue,
                 dzgoodwillAddress,
                 goodwillPortion
             ),
