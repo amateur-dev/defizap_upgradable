@@ -1,4 +1,22 @@
+// Copyright (C) 2019, 2020 dipeshsukhani, nodarjanashia, suhailg, apoorvlathey
+
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Affero General Public License as published by
+// the Free Software Foundation, either version 2 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU Affero General Public License for more details.
+//
+// Visit <https://www.gnu.org/licenses/>for a copy of the GNU Affero General Public License
+
+///@author DeFiZap
+///@notice this contract implements one click swapping among Uniswap Pools
+
 pragma solidity ^0.5.0;
+
 
 /**
  * @dev Interface of the ERC20 standard as defined in the EIP. Does not include
@@ -22,7 +40,9 @@ interface IERC20 {
      *
      * Emits a {Transfer} event.
      */
-    function transfer(address recipient, uint256 amount) external returns (bool);
+    function transfer(address recipient, uint256 amount)
+        external
+        returns (bool);
 
     /**
      * @dev Returns the remaining number of tokens that `spender` will be
@@ -31,7 +51,10 @@ interface IERC20 {
      *
      * This value changes when {approve} or {transferFrom} are called.
      */
-    function allowance(address owner, address spender) external view returns (uint256);
+    function allowance(address owner, address spender)
+        external
+        view
+        returns (uint256);
 
     /**
      * @dev Sets `amount` as the allowance of `spender` over the caller's tokens.
@@ -58,7 +81,9 @@ interface IERC20 {
      *
      * Emits a {Transfer} event.
      */
-    function transferFrom(address sender, address recipient, uint256 amount) external returns (bool);
+    function transferFrom(address sender, address recipient, uint256 amount)
+        external
+        returns (bool);
 
     /**
      * @dev Emitted when `value` tokens are moved from one account (`from`) to
@@ -72,11 +97,16 @@ interface IERC20 {
      * @dev Emitted when the allowance of a `spender` for an `owner` is set by
      * a call to {approve}. `value` is the new allowance.
      */
-    event Approval(address indexed owner, address indexed spender, uint256 value);
+    event Approval(
+        address indexed owner,
+        address indexed spender,
+        uint256 value
+    );
 }
 // File: browser/Context.sol
 
 pragma solidity ^0.5.0;
+
 
 /*
  * @dev Provides information about the current execution context, including the
@@ -91,7 +121,8 @@ pragma solidity ^0.5.0;
 contract Context {
     // Empty internal constructor, to prevent people from mistakenly deploying
     // an instance of this contract, which should be used via inheritance.
-    constructor () internal { }
+    constructor() internal {}
+
     // solhint-disable-previous-line no-empty-blocks
 
     function _msgSender() internal view returns (address payable) {
@@ -107,6 +138,7 @@ contract Context {
 
 pragma solidity ^0.5.0;
 
+
 /**
  * @dev Contract module which provides a basic access control mechanism, where
  * there is an account (an owner) that can be granted exclusive access to
@@ -119,12 +151,15 @@ pragma solidity ^0.5.0;
 contract Ownable is Context {
     address payable public _owner;
 
-    event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
+    event OwnershipTransferred(
+        address indexed previousOwner,
+        address indexed newOwner
+    );
 
     /**
      * @dev Initializes the contract setting the deployer as the initial owner.
      */
-    constructor () internal {
+    constructor() internal {
         address payable msgSender = _msgSender();
         _owner = msgSender;
         emit OwnershipTransferred(address(0), msgSender);
@@ -176,7 +211,10 @@ contract Ownable is Context {
      * @dev Transfers ownership of the contract to a new account (`newOwner`).
      */
     function _transferOwnership(address payable newOwner) internal {
-        require(newOwner != address(0), "Ownable: new owner is the zero address");
+        require(
+            newOwner != address(0),
+            "Ownable: new owner is the zero address"
+        );
         emit OwnershipTransferred(_owner, newOwner);
         _owner = newOwner;
     }
@@ -184,6 +222,7 @@ contract Ownable is Context {
 // File: browser/OpenZepplinSafeMath.sol
 
 pragma solidity ^0.5.0;
+
 
 /**
  * @dev Wrappers over Solidity's arithmetic operations with added overflow
@@ -239,7 +278,11 @@ library SafeMath {
      *
      * _Available since v2.4.0._
      */
-    function sub(uint256 a, uint256 b, string memory errorMessage) internal pure returns (uint256) {
+    function sub(uint256 a, uint256 b, string memory errorMessage)
+        internal
+        pure
+        returns (uint256)
+    {
         require(b <= a, errorMessage);
         uint256 c = a - b;
 
@@ -297,7 +340,11 @@ library SafeMath {
      *
      * _Available since v2.4.0._
      */
-    function div(uint256 a, uint256 b, string memory errorMessage) internal pure returns (uint256) {
+    function div(uint256 a, uint256 b, string memory errorMessage)
+        internal
+        pure
+        returns (uint256)
+    {
         // Solidity only automatically asserts when dividing by 0
         require(b > 0, errorMessage);
         uint256 c = a / b;
@@ -334,7 +381,11 @@ library SafeMath {
      *
      * _Available since v2.4.0._
      */
-    function mod(uint256 a, uint256 b, string memory errorMessage) internal pure returns (uint256) {
+    function mod(uint256 a, uint256 b, string memory errorMessage)
+        internal
+        pure
+        returns (uint256)
+    {
         require(b != 0, errorMessage);
         return a % b;
     }
@@ -342,6 +393,7 @@ library SafeMath {
 // File: browser/OpenZepplinReentrancyGuard.sol
 
 pragma solidity ^0.5.0;
+
 
 /**
  * @dev Contract module that helps prevent reentrant calls to a function.
@@ -361,7 +413,7 @@ pragma solidity ^0.5.0;
 contract ReentrancyGuard {
     bool private _notEntered;
 
-    constructor () internal {
+    constructor() internal {
         // Storing an initial non-zero value makes deployment a bit more
         // expensive, but in exchange the refund on every call to nonReentrant
         // will be lower in amount. Since refunds are capped to a percetange of
@@ -393,35 +445,8 @@ contract ReentrancyGuard {
     }
 }
 
-// Copyright (C) 2019, 2020 dipeshsukhani, nodarjanashia, suhailg, apoorvlathey
-
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU Affero General Public License as published by
-// the Free Software Foundation, either version 2 of the License, or
-// (at your option) any later version.
-//
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-// GNU Affero General Public License for more details.
-//
-// Visit <https://www.gnu.org/licenses/>for a copy of the GNU Affero General Public License
-
-// File: localhost/defizap/node_modules/@openzeppelin/contracts-ethereum-package/contracts/token/ERC20/IERC20.sol
-
-///@author DeFiZap
-///@notice this contract implements one click swapping among Uniswap Pools
 
 // interface
-interface ICurveExchange {
-    function add_liquidity(
-        uint256[4] calldata amounts,
-        uint256 min_mint_amount
-    ) external;
-
-}
-
-
 interface IuniswapFactory {
     function getExchange(address token)
         external
@@ -479,18 +504,28 @@ interface IuniswapExchange {
         returns (bool success);
 }
 
-interface yERC20 {
-   function deposit(uint256 _amount) external;
+
+interface ICurveExchange {
+    function add_liquidity(uint256[4] calldata amounts, uint256 min_mint_amount)
+        external;
 }
 
-pragma solidity ^0.5.13;
+
+interface yERC20 {
+    function deposit(uint256 _amount) external;
+}
+
+pragma solidity 0.5.13;
+
 
 contract ETH_ERC20_Curve_General_Zap_V1 is ReentrancyGuard, Ownable {
     using SafeMath for uint256;
     bool private stopped = false;
     uint16 public goodwill;
     address public dzgoodwillAddress;
-    
+
+
+    // TODO: I WOULD PREFER TO HAVE THE LEAST AMOUNT OF STORAGE IN THE CONTRACT, SEE IF WE CAN ACHIEVE THIS SOMEHOW.
     IuniswapFactory public UniSwapFactoryAddress = IuniswapFactory(
         0xc0a47dFe034B400B47bDaD5FecDa2621de6c4d95
     );
@@ -518,7 +553,7 @@ contract ETH_ERC20_Curve_General_Zap_V1 is ReentrancyGuard, Ownable {
     address public bUSDCurvePoolTokenAddress = address(
         0x3B3Ac5386837Dc563660FB6a0937DFAa5924333B
     );
-    
+
     mapping(address => address) internal exchange2Token;
 
     constructor(uint16 _goodwill, address _dzgoodwillAddress) public {
@@ -540,30 +575,34 @@ contract ETH_ERC20_Curve_General_Zap_V1 is ReentrancyGuard, Ownable {
     }
 
     function approveToken() public {
-      IERC20(DaiTokenAddress).approve(sUSDCurveExchangeAddress, uint256(-1));
-      IERC20(DaiTokenAddress).approve(yCurveExchangeAddress, uint(-1));
-      IERC20(DaiTokenAddress).approve(bUSDCurveExchangeAddress, uint(-1));
-      
-      IERC20(UsdcTokenAddress).approve(sUSDCurveExchangeAddress, uint256(-1));
-      IERC20(UsdcTokenAddress).approve(yCurveExchangeAddress, uint(-1));
-      IERC20(UsdcTokenAddress).approve(bUSDCurveExchangeAddress, uint(-1));
+        IERC20(DaiTokenAddress).approve(sUSDCurveExchangeAddress, uint256(-1));
+        IERC20(DaiTokenAddress).approve(yCurveExchangeAddress, uint256(-1));
+        IERC20(DaiTokenAddress).approve(bUSDCurveExchangeAddress, uint256(-1));
+
+        IERC20(UsdcTokenAddress).approve(sUSDCurveExchangeAddress, uint256(-1));
+        IERC20(UsdcTokenAddress).approve(yCurveExchangeAddress, uint256(-1));
+        IERC20(UsdcTokenAddress).approve(bUSDCurveExchangeAddress, uint256(-1));
     }
-    
+
+    // FIXME: There is no setter for the address declared in the storage of the contract.  For eg, set_new_Dai_Address (onlyOwner)
+
+    // FIXME: DO WE NEED REENTRANCY PROTECTION AT ALL?
     function ZapIn(
         address _toWhomToIssue,
         address _IncomingTokenAddress,
         address _curvePoolExchangeAddress,
+        // FIXME: If we remove all the storage in relation to (a) the CurvePool and (b) CurveExchange address, we are freeing up the contract to take into account any new Curve stuff that may come in the future.  We can fill all of these details from the JS.  Why not we do that?
         uint256 _IncomingTokenQty
-    ) public payable stopInEmergency returns(uint256 crvTokensBought){
-        
+    ) public payable stopInEmergency returns (uint256 crvTokensBought) {
+        // FIXME: based on my comment above, this check may not be required.
         require(
-            _curvePoolExchangeAddress == sUSDCurveExchangeAddress || 
-            _curvePoolExchangeAddress == yCurveExchangeAddress || 
-            _curvePoolExchangeAddress == bUSDCurveExchangeAddress, 
+            _curvePoolExchangeAddress == sUSDCurveExchangeAddress ||
+                _curvePoolExchangeAddress == yCurveExchangeAddress ||
+                _curvePoolExchangeAddress == bUSDCurveExchangeAddress,
             "Invalid Curve Pool Address"
         );
-    
-        if(_IncomingTokenAddress == address(0)) {
+
+        if (_IncomingTokenAddress == address(0)) {
             crvTokensBought = ZapInWithETH(
                 _toWhomToIssue,
                 _curvePoolExchangeAddress
@@ -578,44 +617,46 @@ contract ETH_ERC20_Curve_General_Zap_V1 is ReentrancyGuard, Ownable {
         }
     }
 
+    // FIXME: WHY IS AN INTERNAL FUNCTION NONRENTRANT?
     function ZapInWithETH(
         address _toWhomToIssue,
         address _curvePoolExchangeAddress
-    ) internal nonReentrant stopInEmergency returns(uint256 crvTokensBought){
+    ) internal nonReentrant stopInEmergency returns (uint256 crvTokensBought) {
         require(msg.value > 0, "Err: No ETH sent");
         
-        uint256 daiBought = _eth2Token(
-            DaiTokenAddress,
-            (msg.value).div(2)
+        // FIXME: WHAT IS THE REASON TO SPLIT IN TWO HALVES AND THEN BUY?  WHAT IF BUY ONLY ONE TOKEN INSTEAD?
+        uint256 daiBought = _eth2Token(DaiTokenAddress, (msg.value).div(2));
+        uint256 usdcBought = _eth2Token(UsdcTokenAddress, (msg.value).div(2));
+
+        crvTokensBought = _enter2Curve(
+            _toWhomToIssue,
+            daiBought,
+            usdcBought,
+            _curvePoolExchangeAddress
         );
-        uint256 usdcBought = _eth2Token(
-            UsdcTokenAddress,
-            (msg.value).div(2)
-        );
-        
-        crvTokensBought = _enter2Curve(_toWhomToIssue, daiBought, usdcBought, _curvePoolExchangeAddress);
     }
 
+    // FIXME: WHY IS AN INTERNAL FUNCTION NONRENTRANT?
     function ZapInWithERC20(
         address _toWhomToIssue,
         address _IncomingTokenAddress,
         address _curvePoolExchangeAddress,
         uint256 _IncomingTokenQty
-    ) internal nonReentrant stopInEmergency returns(uint256 crvTokensBought){
+    ) internal nonReentrant stopInEmergency returns (uint256 crvTokensBought) {
         require(_IncomingTokenQty > 0, "Err: No ERC20 sent");
 
         require(
-                IERC20(_IncomingTokenAddress).transferFrom(
-                    msg.sender,
-                    address(this),
-                    _IncomingTokenQty
-                ),
-                "Error in transferring ERC20"
+            IERC20(_IncomingTokenAddress).transferFrom(
+                msg.sender,
+                address(this),
+                _IncomingTokenQty
+            ),
+            "Error in transferring ERC20"
         );
 
         uint256 daiBought;
         uint256 usdcBought;
-        
+
         if (_IncomingTokenAddress == DaiTokenAddress) {
             daiBought = _IncomingTokenQty;
             usdcBought = 0;
@@ -623,6 +664,7 @@ contract ETH_ERC20_Curve_General_Zap_V1 is ReentrancyGuard, Ownable {
             daiBought = 0;
             usdcBought = _IncomingTokenQty;
         } else {
+            // FIXME: WHAT IS THE REASON TO SPLIT IN TWO HALVES AND THEN BUY?  WHAT IF BUY ONLY ONE TOKEN INSTEAD?
             daiBought = _token2Token(
                 _IncomingTokenAddress,
                 DaiTokenAddress,
@@ -632,38 +674,48 @@ contract ETH_ERC20_Curve_General_Zap_V1 is ReentrancyGuard, Ownable {
                 _IncomingTokenAddress,
                 UsdcTokenAddress,
                 (_IncomingTokenQty).div(2)
-            );   
+            );
         }
-        
-        crvTokensBought = _enter2Curve(_toWhomToIssue, daiBought, usdcBought, _curvePoolExchangeAddress);
+
+        crvTokensBought = _enter2Curve(
+            _toWhomToIssue,
+            daiBought,
+            usdcBought,
+            _curvePoolExchangeAddress
+        );
     }
 
-    function _enter2Curve(address _toWhomToIssue, uint256 daiBought, uint256 usdcBought, address _curvePoolExchangeAddress)
-        internal
-        returns (uint256 crvTokensBought)
-    {
-
+    function _enter2Curve(
+        address _toWhomToIssue,
+        uint256 daiBought,
+        uint256 usdcBought,
+        address _curvePoolExchangeAddress
+    ) internal returns (uint256 crvTokensBought) {
         // 0 = DAI, 1 = USDC, 2 = USDT, 3 = TUSD/sUSD
         ICurveExchange(_curvePoolExchangeAddress).add_liquidity(
             [daiBought, usdcBought, 0, 0],
             0
         );
+        // TODO: SO BASED ON THE ABOVE FUNCTION, WE ARE ADDING LIQUIDITY IN THE CURVEPOOLEXCHANGE CONRTRAT, BUT BASED ON BELOW FUNCTION IT APPEARS THAT WE ARE GETTING AN ERC20 OF ANOTHER CONTRACT.  IS THIS CORRECT?  IF YES, (A) HOW IS THIS BEING IMPLEMENTED BY CURVE, AND (B) WHAT DO YOU THINK IS THE RATIONALE FOR DOING THIS.
         address poolTokenAddress = exchange2Token[_curvePoolExchangeAddress];
         crvTokensBought = IERC20(poolTokenAddress).balanceOf(address(this));
         require(crvTokensBought > 0, "Error swapping to CRV");
-        
+
         uint256 goodwillPortion = SafeMath.div(
             SafeMath.mul(crvTokensBought, goodwill),
             10000
         );
-        
+
         require(
-            IERC20(poolTokenAddress).transfer(dzgoodwillAddress, goodwillPortion),
+            IERC20(poolTokenAddress).transfer(
+                dzgoodwillAddress,
+                goodwillPortion
+            ),
             "Error transferring goodwill"
         );
-        
+
         require(
-            IERC20(poolTokenAddress).transfer( 
+            IERC20(poolTokenAddress).transfer(
                 _toWhomToIssue,
                 SafeMath.sub(crvTokensBought, goodwillPortion)
             ),
@@ -675,26 +727,22 @@ contract ETH_ERC20_Curve_General_Zap_V1 is ReentrancyGuard, Ownable {
         internal
         returns (uint256 tokensBought)
     {
-
-            IuniswapExchange ToUniSwapExchangeContractAddress
-         = IuniswapExchange(
+        IuniswapExchange ToUniSwapExchangeContractAddress = IuniswapExchange(
             UniSwapFactoryAddress.getExchange(_ToTokenContractAddress)
         );
 
         tokensBought = ToUniSwapExchangeContractAddress
             .ethToTokenSwapInput
-            .value(ethReceived)(1, SafeMath.add(now, 1800));
+            .value(ethReceived)(1, SafeMath.add(now, 300));
         require(tokensBought > 0, "Error in swapping ETH");
     }
-    
+
     function _token2Token(
         address _FromTokenContractAddress,
         address _ToTokenContractAddress,
         uint256 tokens2Trade
     ) internal returns (uint256 tokensBought) {
-
-            IuniswapExchange FromUniSwapExchangeContractAddress
-         = IuniswapExchange(
+        IuniswapExchange FromUniSwapExchangeContractAddress = IuniswapExchange(
             UniSwapFactoryAddress.getExchange(_FromTokenContractAddress)
         );
 
@@ -707,7 +755,7 @@ contract ETH_ERC20_Curve_General_Zap_V1 is ReentrancyGuard, Ownable {
             tokens2Trade,
             1,
             1,
-            SafeMath.add(now, 1800),
+            SafeMath.add(now, 300),
             _ToTokenContractAddress
         );
 
@@ -721,12 +769,13 @@ contract ETH_ERC20_Curve_General_Zap_V1 is ReentrancyGuard, Ownable {
 
     function set_new_goodwill(uint16 _new_goodwill) public onlyOwner {
         require(
-            _new_goodwill > 0 && _new_goodwill < 10000,
+            // TODO: PLEASE NOTE, THE GOODWILL CHECK HAS TO BE EQUAL TO OR MORE THAN ZERO.  WE ARE MISSING THE EQUAL TO PERMISSION IN SOME CONTRACTS
+            _new_goodwill >= 0 && _new_goodwill < 10000,
             "GoodWill Value not allowed"
         );
         goodwill = _new_goodwill;
     }
-    
+
     function set_new_dzgoodwillAddress(address _new_dzgoodwillAddress)
         public
         onlyOwner
@@ -749,5 +798,7 @@ contract ETH_ERC20_Curve_General_Zap_V1 is ReentrancyGuard, Ownable {
         selfdestruct(_owner);
     }
 
+    
+    // TODO: DO WE NEED TO HAVE AN OPEN ENDED FALLBACK? I DO NOT SEE A REASON WHY WE SHOULD
     function() external payable {}
 }
