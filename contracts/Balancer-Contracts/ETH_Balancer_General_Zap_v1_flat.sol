@@ -430,7 +430,7 @@ contract ReentrancyGuard {
     }
 }
 
-// File: browser/ETH_Balancer_General_Zap_v2.sol
+// File: browser/ETH_Balancer_General_Zap_v1.sol
 
 // Copyright (C) 2020 defizap, dipeshsukhani, nodarjanashia, suhailg
 
@@ -454,7 +454,7 @@ contract ReentrancyGuard {
 pragma solidity ^0.5.13;
 
 
-interface IWethToken_ETH_Balancer_General_Zap_V2 {
+interface IWethToken_ETH_Balancer_General_Zap_V1 {
     function deposit() external payable;
 
     function withdraw(uint256 amount) external;
@@ -463,12 +463,12 @@ interface IWethToken_ETH_Balancer_General_Zap_V2 {
 }
 
 
-interface IBFactory_ETH_Balancer_General_Zap_V2 {
+interface IBFactory_ETH_Balancer_General_Zap_V1 {
     function isBPool(address b) external view returns (bool);
 }
 
 
-interface IBPool_ETH_Balancer_General_Zap_V2 {
+interface IBPool_ETH_Balancer_General_Zap_V1 {
     function joinswapExternAmountIn(
         address tokenIn,
         uint256 tokenAmountIn,
@@ -503,7 +503,7 @@ interface IBPool_ETH_Balancer_General_Zap_V2 {
 }
 
 
-interface IuniswapFactory_ETH_Balancer_General_Zap_V2 {
+interface IuniswapFactory_ETH_Balancer_General_Zap_V1 {
     function getExchange(address token)
         external
         view
@@ -511,7 +511,7 @@ interface IuniswapFactory_ETH_Balancer_General_Zap_V2 {
 }
 
 
-interface Iuniswap_ETH_Balancer_General_Zap_V2 {
+interface Iuniswap_ETH_Balancer_General_Zap_V1 {
     function getEthToTokenInputPrice(uint256 eth_sold)
         external
         view
@@ -532,18 +532,17 @@ interface Iuniswap_ETH_Balancer_General_Zap_V2 {
 }
 
 
-contract ETH_Balancer_General_Zap_v2 is ReentrancyGuard, Ownable {
+contract ETH_Balancer_General_Zap_v1 is ReentrancyGuard, Ownable {
     using SafeMath for uint256;
     bool private stopped = false;
     uint16 public goodwill;
     address public dzgoodwillAddress;
 
-    IBFactory_ETH_Balancer_General_Zap_V2 BalancerFactory = IBFactory_ETH_Balancer_General_Zap_V2(
+    IBFactory_ETH_Balancer_General_Zap_V1 BalancerFactory = IBFactory_ETH_Balancer_General_Zap_V1(
         0x9424B1412450D0f8Fc2255FAf6046b98213B76Bd
     );
 
-    IuniswapFactory_ETH_Balancer_General_Zap_V2 public UniSwapFactoryAddress
-    = IuniswapFactory_ETH_Balancer_General_Zap_V2(
+    IuniswapFactory_ETH_Balancer_General_Zap_V1 public UniSwapFactoryAddress = IuniswapFactory_ETH_Balancer_General_Zap_V1(
         0xc0a47dFe034B400B47bDaD5FecDa2621de6c4d95
     );
 
@@ -585,8 +584,9 @@ contract ETH_Balancer_General_Zap_v2 is ReentrancyGuard, Ownable {
 
         uint256 returnedTokens;
 
-        Iuniswap_ETH_Balancer_General_Zap_V2 FromUniSwapExchangeContractAddress
-        = Iuniswap_ETH_Balancer_General_Zap_V2(
+
+        Iuniswap_ETH_Balancer_General_Zap_V1 FromUniSwapExchangeContractAddress
+        = Iuniswap_ETH_Balancer_General_Zap_V1(
             UniSwapFactoryAddress.getExchange(_FromTokenContractAddress)
         );
 
@@ -621,7 +621,7 @@ contract ETH_Balancer_General_Zap_v2 is ReentrancyGuard, Ownable {
     }
 
     /**
-    @notice This function finds best token from the final tokens of balancer pool
+    @notice This function finds best token from the final tokens of balancer pool to zapin with
     @param _ToBalancerPoolAddress The address of balancer pool to zap in
     @param eth_sold The amount of eth to invest
     @return The token address having max liquidity
@@ -632,7 +632,7 @@ contract ETH_Balancer_General_Zap_v2 is ReentrancyGuard, Ownable {
         returns (address _token)
     {
         //get token list
-        address[] memory tokens = IBPool_ETH_Balancer_General_Zap_V2(
+        address[] memory tokens = IBPool_ETH_Balancer_General_Zap_V1(
             _ToBalancerPoolAddress
         ).getFinalTokens();
 
@@ -640,8 +640,8 @@ contract ETH_Balancer_General_Zap_v2 is ReentrancyGuard, Ownable {
 
         for (uint256 index = 0; index < tokens.length; index++) {
 
-            Iuniswap_ETH_Balancer_General_Zap_V2 FromUniSwapExchangeContractAddress
-            = Iuniswap_ETH_Balancer_General_Zap_V2(
+            Iuniswap_ETH_Balancer_General_Zap_V1 FromUniSwapExchangeContractAddress
+            = Iuniswap_ETH_Balancer_General_Zap_V1(
                 UniSwapFactoryAddress.getExchange(tokens[index])
             );
 
@@ -650,7 +650,7 @@ contract ETH_Balancer_General_Zap_v2 is ReentrancyGuard, Ownable {
             }
 
             //get qty of tokens
-            uint256 expectedTokens = Iuniswap_ETH_Balancer_General_Zap_V2(
+            uint256 expectedTokens = Iuniswap_ETH_Balancer_General_Zap_V1(
                 FromUniSwapExchangeContractAddress
             ).getEthToTokenInputPrice(eth_sold);
 
@@ -674,35 +674,35 @@ contract ETH_Balancer_General_Zap_v2 is ReentrancyGuard, Ownable {
     @param _ToBalancerPoolAddress Address of balancer pool to zapin
     @param _IncomingERC The amount of ERC to invest
     @param _FromToken Address of token to zap in with
-    @return Amount of BPT token
+    @return Amount of expected BPT token
      */
     function getToken2BPT(
         address _ToBalancerPoolAddress,
         uint256 _IncomingERC,
         address _FromToken
     ) internal view returns (uint256 tokensReturned) {
-        uint256 totalSupply = IBPool_ETH_Balancer_General_Zap_V2(
+        uint256 totalSupply = IBPool_ETH_Balancer_General_Zap_V1(
             _ToBalancerPoolAddress
         )
             .totalSupply();
-        uint256 swapFee = IBPool_ETH_Balancer_General_Zap_V2(
+        uint256 swapFee = IBPool_ETH_Balancer_General_Zap_V1(
             _ToBalancerPoolAddress
         )
             .getSwapFee();
-        uint256 totalWeight = IBPool_ETH_Balancer_General_Zap_V2(
+        uint256 totalWeight = IBPool_ETH_Balancer_General_Zap_V1(
             _ToBalancerPoolAddress
         )
             .getTotalDenormalizedWeight();
-        uint256 balance = IBPool_ETH_Balancer_General_Zap_V2(
+        uint256 balance = IBPool_ETH_Balancer_General_Zap_V1(
             _ToBalancerPoolAddress
         )
             .getBalance(_FromToken);
-        uint256 denorm = IBPool_ETH_Balancer_General_Zap_V2(
+        uint256 denorm = IBPool_ETH_Balancer_General_Zap_V1(
             _ToBalancerPoolAddress
         )
             .getDenormalizedWeight(_FromToken);
 
-        tokensReturned = IBPool_ETH_Balancer_General_Zap_V2(
+        tokensReturned = IBPool_ETH_Balancer_General_Zap_V1(
             _ToBalancerPoolAddress
         )
             .calcPoolOutGivenSingleIn(
@@ -727,17 +727,11 @@ contract ETH_Balancer_General_Zap_v2 is ReentrancyGuard, Ownable {
         address _ToBalancerPoolAddress,
         address _fromTokenContractAddress
     ) internal returns (uint256 poolAmountOut) {
-        require(
-            IBPool_ETH_Balancer_General_Zap_V2(_ToBalancerPoolAddress).isBound(
-                _fromTokenContractAddress
-            ),
-            "Token not bound"
-        );
-
         uint256 allowance = IERC20(_fromTokenContractAddress).allowance(
             address(this),
             _ToBalancerPoolAddress
         );
+
         if (allowance < _tokensToTrade) {
             IERC20(_fromTokenContractAddress).approve(
                 _ToBalancerPoolAddress,
@@ -745,7 +739,7 @@ contract ETH_Balancer_General_Zap_v2 is ReentrancyGuard, Ownable {
             );
         }
 
-        poolAmountOut = IBPool_ETH_Balancer_General_Zap_V2(
+        poolAmountOut = IBPool_ETH_Balancer_General_Zap_V1(
             _ToBalancerPoolAddress
         )
             .joinswapExternAmountIn(
@@ -783,21 +777,6 @@ contract ETH_Balancer_General_Zap_v2 is ReentrancyGuard, Ownable {
             ),
             "Error 1 in transferring balancer tokens"
         );
-    }
-
-    /**
-    @notice This function is used to wrap ethers
-    @param eth2Wrap The amount of ether to wrap
-    @return The amount of weth tokens received
-     */
-    function _weth2Token(uint256 eth2Wrap)
-        internal
-        returns (uint256 wrappedEth)
-    {
-        IWethToken_ETH_Balancer_General_Zap_V2(WethTokenAddress).deposit.value(
-            eth2Wrap
-        )();
-        return (IERC20(WethTokenAddress).balanceOf(address(this)));
     }
 
     function inCaseTokengetsStuck(IERC20 _TokenAddress) public onlyOwner {

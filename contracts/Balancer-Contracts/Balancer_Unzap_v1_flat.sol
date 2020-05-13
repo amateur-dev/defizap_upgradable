@@ -430,7 +430,7 @@ contract ReentrancyGuard {
     }
 }
 
-// File: browser/Unipool_Balancer_Bridge_Zap_v1.sol
+// File: browser/Balancer_Unzap_V1.sol
 
 // Copyright (C) 2020 defizap, dipeshsukhani, nodarjanashia, suhailg, sumitrajput
 
@@ -567,7 +567,7 @@ contract Balancer_Unzap_V1 is ReentrancyGuard, Ownable {
     @param _ToTokenContractAddress The token in which we want zapout (for ethers, its zero address)
     @param _FromBalancerPoolAddress The address of balancer pool to zap out
     @param _IncomingBPT The quantity of balancer pool tokens
-    @return The quantity of Balancer Pool tokens returned
+    @return success or failure
     */
     function EasyZapOut(
         address _ToTokenContractAddress,
@@ -635,8 +635,9 @@ contract Balancer_Unzap_V1 is ReentrancyGuard, Ownable {
     }
 
     /**
-    @param _ToTokenContractAddress is the address of the token to which you want to convert to
     @notice In the case of user wanting to get out in ETH, the '_ToTokenContractAddress' it will be address(0x0)
+    @param _toWhomToIssue is the address of user
+    @param _ToTokenContractAddress is the address of the token to which you want to convert to
     @param _FromBalancerPoolAddress the address of the Balancer Pool from which you want to ZapOut
     @param _IncomingBPT is the quantity of Balancer Pool tokens that the user wants to ZapOut
     @param _IntermediateToken is the token to which the Balancer Pool should be Zapped Out
@@ -703,7 +704,7 @@ contract Balancer_Unzap_V1 is ReentrancyGuard, Ownable {
     /**
     @notice This function is used for zapping out of balancer pool
     @param _FromBalancerPoolAddress The address of balancer pool to zap out
-    @param _ToTokenContractAddress The token in which we want zapout (for ethers, its zero address)
+    @param _ToTokenContractAddress The token in which we want to zapout (for ethers, its zero address)
     @param _toWhomToIssue The address of user
     @param tokens2Trade The quantity of balancer pool tokens
     @return success or failure
@@ -731,6 +732,7 @@ contract Balancer_Unzap_V1 is ReentrancyGuard, Ownable {
     @notice This function is used to calculate and transfer goodwill
     @param _tokenContractAddress Token address in which goodwill is deducted
     @param tokens2Trade The total amount of tokens to be zapped out
+    @param _toWhomToIssue The address of user
     @return The amount of goodwill deducted
     */
     function _transferGoodwill(
@@ -761,6 +763,7 @@ contract Balancer_Unzap_V1 is ReentrancyGuard, Ownable {
     /**
     @notice This function finds best token from the final tokens of balancer pool
     @param _FromBalancerPoolAddress The address of balancer pool to zap out
+    @param _IncomingBPT The amount of balancer pool token to covert
     @return The token address having max liquidity
      */
     function _getBestDeal(
