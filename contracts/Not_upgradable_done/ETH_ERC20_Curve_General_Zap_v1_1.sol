@@ -1,4 +1,4 @@
-// Copyright (C) 2019, 2020 dipeshsukhani, nodarjanashia, suhailg, apoorvlathey, sebaudet
+// Copyright (C) 2019, 2020 dipeshsukhani, nodarjanashia, suhailg, apoorvlathey, sebaudet, sumit
 
 // This program is free software: you can redistribute it and/or modify
 // it under the terms of the GNU Affero General Public License as published by
@@ -525,8 +525,6 @@ contract ETH_ERC20_Curve_General_Zap_V1 is ReentrancyGuard, Ownable {
     address public dzgoodwillAddress;
 
 
-    // TODO: I WOULD PREFER TO HAVE THE LEAST AMOUNT OF STORAGE IN THE CONTRACT, SEE IF WE CAN ACHIEVE THIS SOMEHOW.
-        //RES: Requires 8 addresses on deploy if removed (and dai/usdc addresses are kept). Factory getter for exchange/token is not available with Curve unlike Uniswap/Balancer.
     IuniswapFactory public UniSwapFactoryAddress = IuniswapFactory(
         0xc0a47dFe034B400B47bDaD5FecDa2621de6c4d95
     );
@@ -594,20 +592,13 @@ contract ETH_ERC20_Curve_General_Zap_V1 is ReentrancyGuard, Ownable {
         IERC20(UsdcTokenAddress).approve(paxCurveExchangeAddress, uint256(-1));
     }
 
-    // FIXME: There is no setter for the address declared in the storage of the contract.  For eg, set_new_Dai_Address (onlyOwner)
-        // RES: New contract will be deployed in case of curve contract change
-    // FIXME: DO WE NEED REENTRANCY PROTECTION AT ALL?
-        //FIX: Not sure if we do. No external/untrusted calls are made in this fx. Harmful if left in place?
+
     function ZapIn(
         address _toWhomToIssue,
         address _IncomingTokenAddress,
         address _curvePoolExchangeAddress,
-        // FIXME: If we remove all the storage in relation to (a) the CurvePool and (b) CurveExchange address, we are freeing up the contract to take into account any new Curve stuff that may come in the future.  We can fill all of these details from the JS.  Why not we do that?
-            // RES: Requires additional public (only owner) approval fx that grants dai/usdc approval to interact with any new curve exchanges from this contract.
-            // Addresses exist storage already due to extensive approvals required on deploy. Could be doable if there is no problem with lage number of addresses needed for approval on deploy. Exchange/pool address can also be maintained on FE and passed
         uint256 _IncomingTokenQty
     ) public payable stopInEmergency returns (uint256 crvTokensBought) {
-        // FIXME: based on my comment above, this check may not be required.
         require(
             _curvePoolExchangeAddress == sUSDCurveExchangeAddress ||
                 _curvePoolExchangeAddress == yCurveExchangeAddress ||
@@ -631,19 +622,13 @@ contract ETH_ERC20_Curve_General_Zap_V1 is ReentrancyGuard, Ownable {
         }
     }
 
-    // FIXME: WHY IS AN INTERNAL FUNCTION NONRENTRANT?
-        //FIX Removed nonreentrant
     function ZapInWithETH(
         address _toWhomToIssue,
         address _curvePoolExchangeAddress
     ) internal stopInEmergency returns (uint256 crvTokensBought) {
         require(msg.value > 0, "Err: No ETH sent");
-        
-        // FIXME: WHAT IS THE REASON TO SPLIT IN TWO HALVES AND THEN BUY?  WHAT IF BUY ONLY ONE TOKEN INSTEAD?
-            //RES: See below
         uint256 daiBought = _eth2Token(DaiTokenAddress, (msg.value).div(2));
         uint256 usdcBought = _eth2Token(UsdcTokenAddress, (msg.value).div(2));
-
         crvTokensBought = _enter2Curve(
             _toWhomToIssue,
             daiBought,
@@ -652,8 +637,7 @@ contract ETH_ERC20_Curve_General_Zap_V1 is ReentrancyGuard, Ownable {
         );
     }
 
-    // FIXME: WHY IS AN INTERNAL FUNCTION NONRENTRANT?
-        //FIX removed nonreentrant
+
     function ZapInWithERC20(
         address _toWhomToIssue,
         address _IncomingTokenAddress,
@@ -681,8 +665,6 @@ contract ETH_ERC20_Curve_General_Zap_V1 is ReentrancyGuard, Ownable {
             daiBought = 0;
             usdcBought = _IncomingTokenQty;
         } else {
-            // FIXME: WHAT IS THE REASON TO SPLIT IN TWO HALVES AND THEN BUY?  WHAT IF BUY ONLY ONE TOKEN INSTEAD?
-                //RES: Split dai and usdc purchase into separate fx. Add check on FE to toggle bool t/f if both should be purchase, otherwise purchase 1 (maybe implement script to check for best return)
             daiBought = _token2Token(
                 _IncomingTokenAddress,
                 DaiTokenAddress,
@@ -714,8 +696,6 @@ contract ETH_ERC20_Curve_General_Zap_V1 is ReentrancyGuard, Ownable {
             [daiBought, usdcBought, 0, 0],
             0
         );
-        // TODO: SO BASED ON THE ABOVE FUNCTION, WE ARE ADDING LIQUIDITY IN THE CURVEPOOLEXCHANGE CONRTRAT, BUT BASED ON BELOW FUNCTION IT APPEARS THAT WE ARE GETTING AN ERC20 OF ANOTHER CONTRACT.  IS THIS CORRECT?  IF YES, (A) HOW IS THIS BEING IMPLEMENTED BY CURVE, AND (B) WHAT DO YOU THINK IS THE RATIONALE FOR DOING THIS.
-            // RES: Yes correct, exchange and pool token address are different. Curve will call mint on pool token address after deposit. Rationale - allow updates to existing exchange logic without affect token holders
         address poolTokenAddress = exchange2Token[_curvePoolExchangeAddress];
         crvTokensBought = IERC20(poolTokenAddress).balanceOf(address(this));
         require(crvTokensBought > 0, "Error swapping to CRV");
@@ -788,8 +768,6 @@ contract ETH_ERC20_Curve_General_Zap_V1 is ReentrancyGuard, Ownable {
 
     function set_new_goodwill(uint16 _new_goodwill) public onlyOwner {
         require(
-            // TODO: PLEASE NOTE, THE GOODWILL CHECK HAS TO BE EQUAL TO OR MORE THAN ZERO.  WE ARE MISSING THE EQUAL TO PERMISSION IN SOME CONTRACTS
-                //RES: Looks fine here
             _new_goodwill >= 0 && _new_goodwill < 10000,
             "GoodWill Value not allowed"
         );
@@ -817,9 +795,4 @@ contract ETH_ERC20_Curve_General_Zap_V1 is ReentrancyGuard, Ownable {
     function destruct() public onlyOwner {
         selfdestruct(_owner);
     }
-
-    
-    // TODO: DO WE NEED TO HAVE AN OPEN ENDED FALLBACK? I DO NOT SEE A REASON WHY WE SHOULD
-        //FIX: Remove fallback
-
 }
