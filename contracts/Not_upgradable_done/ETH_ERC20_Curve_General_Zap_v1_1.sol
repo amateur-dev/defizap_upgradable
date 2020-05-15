@@ -1,4 +1,4 @@
-// Copyright (C) 2019, 2020 dipeshsukhani, nodarjanashia, suhailg, apoorvlathey
+// Copyright (C) 2019, 2020 dipeshsukhani, nodarjanashia, suhailg, apoorvlathey, sebaudet
 
 // This program is free software: you can redistribute it and/or modify
 // it under the terms of the GNU Affero General Public License as published by
@@ -13,7 +13,7 @@
 // Visit <https://www.gnu.org/licenses/>for a copy of the GNU Affero General Public License
 
 ///@author DeFiZap
-///@notice this contract implements one click swapping among Uniswap Pools
+///@notice this contract implements one click swapping among Uniswap Pools.
 
 pragma solidity ^0.5.0;
 
