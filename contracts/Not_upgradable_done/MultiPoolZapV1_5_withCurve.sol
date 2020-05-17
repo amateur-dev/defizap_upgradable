@@ -220,6 +220,11 @@ contract MultiPoolZapV1_5 is Ownable {
             )(msg.sender, address(0), _curvePoolAddresses[i], 0);
             residualETH = 0;
         }
+        
+        if(address(this).balance > 0) {
+            userBalance[msg.sender] = address(this).balance;
+            require (send_out_eth(msg.sender));
+        }
     }
 
     /**
@@ -258,6 +263,19 @@ contract MultiPoolZapV1_5 is Ownable {
             address(this)
         );
         require(ethBought > 0, "Error in swapping Eth: 1");
+    }
+    
+    /**
+        @notice This function sends the user's remaining ETH back to them.
+        @param _towhomtosendtheETH The Address of the user
+        @return Boolean corresponding to successful execution.
+    */
+    function send_out_eth(address _towhomtosendtheETH) internal returns (bool) {
+        require(userBalance[_towhomtosendtheETH] > 0);
+        uint256 amount = userBalance[_towhomtosendtheETH];
+        userBalance[_towhomtosendtheETH] = 0;
+        (bool success, ) = _towhomtosendtheETH.call.value(amount)("");
+        return success;
     }
 
     // - fallback function let you / anyone send ETH to this wallet without the need to call any function
