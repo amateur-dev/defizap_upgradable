@@ -430,9 +430,9 @@ contract ReentrancyGuard {
     }
 }
 
-// File: browser/ETH_Balancer_General_Zap_v1.sol
+// File: browser/ERC20_Balancer_General_V1_1.sol
 
-// Copyright (C) 2020 defizap, dipeshsukhani, nodarjanashia, suhailg
+// Copyright (C) 2020 defizap, dipeshsukhani, nodarjanashia, suhailg, sumitrajput
 
 // This program is free software: you can redistribute it and/or modify
 // it under the terms of the GNU Affero General Public License as published by
@@ -449,26 +449,17 @@ contract ReentrancyGuard {
 // File: localhost/defizap/node_modules/@openzeppelin/contracts-ethereum-package/contracts/token/ERC20/IERC20.sol
 
 ///@author DeFiZap
-///@notice this contract enables entry into Balancer pools using ETH.
+///@notice this contract helps in investing in balancer pools with ERC20 tokens
 
 pragma solidity ^0.5.13;
 
 
-interface IWethToken_ETH_Balancer_General_Zap_V1 {
-    function deposit() external payable;
-
-    function withdraw(uint256 amount) external;
-
-    function withdraw(uint256 amount, address user) external;
-}
-
-
-interface IBFactory_ETH_Balancer_General_Zap_V1 {
+interface IBFactory_ERC20_Balancer_General_V1_1 {
     function isBPool(address b) external view returns (bool);
 }
 
 
-interface IBPool_ETH_Balancer_General_Zap_V1 {
+interface IBPool_ERC20_Balancer_General_V1_1 {
     function joinswapExternAmountIn(
         address tokenIn,
         uint256 tokenAmountIn,
@@ -503,7 +494,7 @@ interface IBPool_ETH_Balancer_General_Zap_V1 {
 }
 
 
-interface IuniswapFactory_ETH_Balancer_General_Zap_V1 {
+interface IuniswapFactory_ERC20_Balancer_General_V1_1 {
     function getExchange(address token)
         external
         view
@@ -511,15 +502,24 @@ interface IuniswapFactory_ETH_Balancer_General_Zap_V1 {
 }
 
 
-interface Iuniswap_ETH_Balancer_General_Zap_V1 {
+interface Iuniswap_ERC20_Balancer_General_V1_1 {
+    // converting ERC20 to ERC20 and transfer
+    function tokenToTokenSwapInput(
+        uint256 tokens_sold,
+        uint256 min_tokens_bought,
+        uint256 min_eth_bought,
+        uint256 deadline,
+        address token_addr
+    ) external returns (uint256 tokens_bought);
+
+    function getTokenToEthInputPrice(uint256 tokens_sold)
+        external
+        view
+        returns (uint256 eth_bought);
+
     function getEthToTokenInputPrice(uint256 eth_sold)
         external
         view
-        returns (uint256 tokens_bought);
-
-    function ethToTokenSwapInput(uint256 min_tokens, uint256 deadline)
-        external
-        payable
         returns (uint256 tokens_bought);
 
     function balanceOf(address _owner) external view returns (uint256);
@@ -532,22 +532,18 @@ interface Iuniswap_ETH_Balancer_General_Zap_V1 {
 }
 
 
-contract ETH_Balancer_General_Zap_v1 is ReentrancyGuard, Ownable {
+contract ERC20_Balancer_General_V1_1 is ReentrancyGuard, Ownable {
     using SafeMath for uint256;
     bool private stopped = false;
     uint16 public goodwill;
     address public dzgoodwillAddress;
 
-    IBFactory_ETH_Balancer_General_Zap_V1 BalancerFactory = IBFactory_ETH_Balancer_General_Zap_V1(
-        0x9424B1412450D0f8Fc2255FAf6046b98213B76Bd
-    );
-
-    IuniswapFactory_ETH_Balancer_General_Zap_V1 public UniSwapFactoryAddress = IuniswapFactory_ETH_Balancer_General_Zap_V1(
+    IuniswapFactory_ERC20_Balancer_General_V1_1 public UniSwapFactoryAddress
+    = IuniswapFactory_ERC20_Balancer_General_V1_1(
         0xc0a47dFe034B400B47bDaD5FecDa2621de6c4d95
     );
-
-    address public WethTokenAddress = address(
-        0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2
+    IBFactory_ERC20_Balancer_General_V1_1 BalancerFactory = IBFactory_ERC20_Balancer_General_V1_1(
+        0x9424B1412450D0f8Fc2255FAf6046b98213B76Bd
     );
 
     constructor(uint16 _goodwill, address _dzgoodwillAddress) public {
@@ -565,83 +561,250 @@ contract ETH_Balancer_General_Zap_v1 is ReentrancyGuard, Ownable {
     }
 
     /**
-    @notice This function is used to invest in given balancer pool through eth
-    @param _toWhomToIssue The user address
-    @param _ToBalancerPoolAddress The address of balancer pool to zap in
-    @return The quantity of Balancer Pool tokens returned
+    @notice This function is used to invest in given balancer pool through ERC20 Tokens
+    @param _FromTokenContractAddress The token address used for investment
+    @param _ToBalancerPoolAddress The address of balancer pool to zapin
+    @param _IncomingERC The amount of ERC to invest
+    @return success or failure
      */
-    function ZapIn(address _toWhomToIssue, address _ToBalancerPoolAddress)
-        public
-        payable
-        nonReentrant
-        stopInEmergency
-        returns (uint256)
-    {
-        address _FromTokenContractAddress = _getBestDeal(
-            _ToBalancerPoolAddress,
-            msg.value
+    function EasyZapIn(
+        address _FromTokenContractAddress,
+        address _ToBalancerPoolAddress,
+        uint256 _IncomingERC
+    ) public payable nonReentrant stopInEmergency returns (bool) {
+        require(
+            BalancerFactory.isBPool(_ToBalancerPoolAddress),
+            "Invalid Balancer Pool"
         );
 
-        uint256 returnedTokens;
-
-
-        Iuniswap_ETH_Balancer_General_Zap_V1 FromUniSwapExchangeContractAddress
-        = Iuniswap_ETH_Balancer_General_Zap_V1(
-            UniSwapFactoryAddress.getExchange(_FromTokenContractAddress)
-        );
-
-        uint256 minTokens = FromUniSwapExchangeContractAddress
-            .getEthToTokenInputPrice(msg.value);
-        minTokens = SafeMath.div(SafeMath.mul(minTokens, 99), 100);
-
-        returnedTokens = FromUniSwapExchangeContractAddress
-            .ethToTokenSwapInput
-            .value(msg.value)(minTokens, SafeMath.add(now, 300));
-
-        uint256 balancerTokens = _enter2Balancer(
-            returnedTokens,
-            _ToBalancerPoolAddress,
-            _FromTokenContractAddress
-        );
-
-        // transfer goodwill
-        uint256 goodwillPortion = _transferGoodwill(
-            _ToBalancerPoolAddress,
-            balancerTokens
-        );
+        address _ToTokenContractAddress;
+        if (
+            IBPool_ERC20_Balancer_General_V1_1(_ToBalancerPoolAddress).isBound(
+                _FromTokenContractAddress
+            )
+        ) {
+            _ToTokenContractAddress = _FromTokenContractAddress;
+        } else {
+            _ToTokenContractAddress = _getBestDeal(
+                _ToBalancerPoolAddress,
+                _IncomingERC,
+                _FromTokenContractAddress
+            );
+        }
 
         require(
-            IERC20(_ToBalancerPoolAddress).transfer(
-                _toWhomToIssue,
-                balancerTokens.sub(goodwillPortion)
-            ),
-            "Error 2 in transferring balancer tokens"
+            _performZapIn(
+                msg.sender,
+                _FromTokenContractAddress,
+                _ToBalancerPoolAddress,
+                _IncomingERC,
+                _ToTokenContractAddress
+            )
         );
-        return balancerTokens.sub(goodwillPortion);
     }
 
     /**
-    @notice This function finds best token from the final tokens of balancer pool to zapin with
+    @notice This function is used to invest in given balancer pool through ERC20 Tokens with interface
+    @param _toWhomToIssue The user address who want to invest
+    @param _FromTokenContractAddress The token used for investment
+    @param _ToBalancerPoolAddress The address of balancer pool to zapin
+    @param _IncomingERC The amount of ERC to invest
+    @param _IntermediateToken The token for intermediate conversion before zapin
+    @return The quantity of Balancer Pool tokens returned
+     */
+    function ZapIn(
+        address payable _toWhomToIssue,
+        address _FromTokenContractAddress,
+        address _ToBalancerPoolAddress,
+        uint256 _IncomingERC,
+        address _IntermediateToken
+    ) public payable nonReentrant stopInEmergency returns (bool) {
+        require(
+            _performZapIn(
+                _toWhomToIssue,
+                _FromTokenContractAddress,
+                _ToBalancerPoolAddress,
+                _IncomingERC,
+                _IntermediateToken
+            ),
+            "Error in zapin"
+        );
+    }
+
+    /**
+    @notice This function internally called by ZapIn() and EasyZapIn()
+    @param _toWhomToIssue The user address who want to invest
+    @param _FromTokenContractAddress The token used for investment
+    @param _ToBalancerPoolAddress The address of balancer pool to zapin
+    @param _IncomingERC The amount of ERC to invest
+    @param _IntermediateToken The token for intermediate conversion before zapin
+    @return The quantity of Balancer Pool tokens returned
+     */
+    function _performZapIn(
+        address _toWhomToIssue,
+        address _FromTokenContractAddress,
+        address _ToBalancerPoolAddress,
+        uint256 _IncomingERC,
+        address _IntermediateToken
+    ) internal returns (bool) {
+        //transfer goodwill
+        uint256 goodwillPortion = _transferGoodwill(
+            _FromTokenContractAddress,
+            _IncomingERC,
+            _toWhomToIssue
+        );
+
+        //transfer remaining tokens to contract
+        require(
+            IERC20(_FromTokenContractAddress).transferFrom(
+                _toWhomToIssue,
+                address(this),
+                SafeMath.sub(_IncomingERC, goodwillPortion)
+            ),
+            "Error in transferring BPT:2"
+        );
+
+        // check if isBound()
+        bool isBound = IBPool_ERC20_Balancer_General_V1_1(
+            _ToBalancerPoolAddress
+        )
+            .isBound(_FromTokenContractAddress);
+
+        uint256 balancerTokens;
+
+        if (isBound) {
+            balancerTokens = _enter2Balancer(
+                _ToBalancerPoolAddress,
+                _FromTokenContractAddress,
+                SafeMath.sub(_IncomingERC, goodwillPortion)
+            );
+        } else {
+            // swap tokens
+            uint256 tokenBought = _token2Token(
+                _FromTokenContractAddress,
+                _IntermediateToken,
+                SafeMath.sub(_IncomingERC, goodwillPortion)
+            );
+
+            //get BPT
+            balancerTokens = _enter2Balancer(
+                _ToBalancerPoolAddress,
+                _IntermediateToken,
+                tokenBought
+            );
+        }
+
+        //transfer tokens to user
+        return (
+            IERC20(_ToBalancerPoolAddress).transfer(
+                _toWhomToIssue,
+                balancerTokens
+            )
+        );
+    }
+
+    /**
+    @notice This function is used to calculate and transfer goodwill
+    @param _tokenContractAddress Token in which goodwill is deducted
+    @param tokens2Trade The total amount of tokens to be zapped in
+    @param _toWhomToIssue the address of investor
+    @return The quantity of goodwill deducted
+     */
+    function _transferGoodwill(
+        address _tokenContractAddress,
+        uint256 tokens2Trade,
+        address _toWhomToIssue
+    ) internal returns (uint256 goodwillPortion) {
+        goodwillPortion = SafeMath.div(
+            SafeMath.mul(tokens2Trade, goodwill),
+            10000
+        );
+
+        if (goodwillPortion == 0) {
+            return 0;
+        }
+
+        require(
+            IERC20(_tokenContractAddress).transferFrom(
+                _toWhomToIssue,
+                dzgoodwillAddress,
+                goodwillPortion
+            ),
+            "Error in transferring BPT:1"
+        );
+    }
+
+    /**
+    @notice This function is used to zapin to balancer pool
     @param _ToBalancerPoolAddress The address of balancer pool to zap in
-    @param eth_sold The amount of eth to invest
+    @param _FromTokenContractAddress The token used to zap in
+    @param tokens2Trade The amount of tokens to invest
+    @return The quantity of Balancer Pool tokens returned
+     */
+    function _enter2Balancer(
+        address _ToBalancerPoolAddress,
+        address _FromTokenContractAddress,
+        uint256 tokens2Trade
+    ) internal returns (uint256 poolTokensOut) {
+        require(
+            IBPool_ERC20_Balancer_General_V1_1(_ToBalancerPoolAddress).isBound(
+                _FromTokenContractAddress
+            ),
+            "Token not bound"
+        );
+
+        uint256 allowance = IERC20(_FromTokenContractAddress).allowance(
+            address(this),
+            _ToBalancerPoolAddress
+        );
+
+        if (allowance < tokens2Trade) {
+            IERC20(_FromTokenContractAddress).approve(
+                _ToBalancerPoolAddress,
+                uint256(-1)
+            );
+        }
+
+        poolTokensOut = IBPool_ERC20_Balancer_General_V1_1(
+            _ToBalancerPoolAddress
+        ).joinswapExternAmountIn(_FromTokenContractAddress, tokens2Trade, 1);
+
+        require(poolTokensOut > 0, "Error in entering balancer pool");
+    }
+
+    /**
+    @notice This function finds best token from the final tokens of balancer pool
+    @param _ToBalancerPoolAddress The address of balancer pool to zap in
+    @param erc_sold amount of erc to invest
+    @param _FromTokenContractAddress the token address which is used to invest
     @return The token address having max liquidity
      */
-    function _getBestDeal(address _ToBalancerPoolAddress, uint256 eth_sold)
-        internal
-        view
-        returns (address _token)
-    {
+    function _getBestDeal(
+        address _ToBalancerPoolAddress,
+        uint256 erc_sold,
+        address _FromTokenContractAddress
+    ) internal view returns (address _token) {
         //get token list
-        address[] memory tokens = IBPool_ETH_Balancer_General_Zap_V1(
+        address[] memory tokens = IBPool_ERC20_Balancer_General_V1_1(
             _ToBalancerPoolAddress
         ).getFinalTokens();
+
+        //get eth value for given token
+
+
+        Iuniswap_ERC20_Balancer_General_V1_1 FromUniSwapExchangeContractAddress
+        = Iuniswap_ERC20_Balancer_General_V1_1(
+            UniSwapFactoryAddress.getExchange(_FromTokenContractAddress)
+        );
+        //get qty of eth expected
+        uint256 eth_sold = Iuniswap_ERC20_Balancer_General_V1_1(
+            FromUniSwapExchangeContractAddress
+        ).getTokenToEthInputPrice(erc_sold);
 
         uint256 maxBPT;
 
         for (uint256 index = 0; index < tokens.length; index++) {
-
-            Iuniswap_ETH_Balancer_General_Zap_V1 FromUniSwapExchangeContractAddress
-            = Iuniswap_ETH_Balancer_General_Zap_V1(
+            FromUniSwapExchangeContractAddress = Iuniswap_ERC20_Balancer_General_V1_1(
                 UniSwapFactoryAddress.getExchange(tokens[index])
             );
 
@@ -650,7 +813,7 @@ contract ETH_Balancer_General_Zap_v1 is ReentrancyGuard, Ownable {
             }
 
             //get qty of tokens
-            uint256 expectedTokens = Iuniswap_ETH_Balancer_General_Zap_V1(
+            uint256 expectedTokens = Iuniswap_ERC20_Balancer_General_V1_1(
                 FromUniSwapExchangeContractAddress
             ).getEthToTokenInputPrice(eth_sold);
 
@@ -674,38 +837,32 @@ contract ETH_Balancer_General_Zap_v1 is ReentrancyGuard, Ownable {
     @param _ToBalancerPoolAddress Address of balancer pool to zapin
     @param _IncomingERC The amount of ERC to invest
     @param _FromToken Address of token to zap in with
-    @return Amount of expected BPT token
+    @return Amount of BPT token
      */
     function getToken2BPT(
         address _ToBalancerPoolAddress,
         uint256 _IncomingERC,
         address _FromToken
     ) internal view returns (uint256 tokensReturned) {
-        uint256 totalSupply = IBPool_ETH_Balancer_General_Zap_V1(
+        uint256 totalSupply = IBPool_ERC20_Balancer_General_V1_1(
             _ToBalancerPoolAddress
-        )
-            .totalSupply();
-        uint256 swapFee = IBPool_ETH_Balancer_General_Zap_V1(
+        ).totalSupply();
+        uint256 swapFee = IBPool_ERC20_Balancer_General_V1_1(
             _ToBalancerPoolAddress
-        )
-            .getSwapFee();
-        uint256 totalWeight = IBPool_ETH_Balancer_General_Zap_V1(
+        ).getSwapFee();
+        uint256 totalWeight = IBPool_ERC20_Balancer_General_V1_1(
             _ToBalancerPoolAddress
-        )
-            .getTotalDenormalizedWeight();
-        uint256 balance = IBPool_ETH_Balancer_General_Zap_V1(
+        ).getTotalDenormalizedWeight();
+        uint256 balance = IBPool_ERC20_Balancer_General_V1_1(
             _ToBalancerPoolAddress
-        )
-            .getBalance(_FromToken);
-        uint256 denorm = IBPool_ETH_Balancer_General_Zap_V1(
+        ).getBalance(_FromToken);
+        uint256 denorm = IBPool_ERC20_Balancer_General_V1_1(
             _ToBalancerPoolAddress
-        )
-            .getDenormalizedWeight(_FromToken);
+        ).getDenormalizedWeight(_FromToken);
 
-        tokensReturned = IBPool_ETH_Balancer_General_Zap_V1(
+        tokensReturned = IBPool_ERC20_Balancer_General_V1_1(
             _ToBalancerPoolAddress
-        )
-            .calcPoolOutGivenSingleIn(
+        ).calcPoolOutGivenSingleIn(
             balance,
             denorm,
             totalSupply,
@@ -716,67 +873,36 @@ contract ETH_Balancer_General_Zap_v1 is ReentrancyGuard, Ownable {
     }
 
     /**
-    @notice This function is used to zap in to the given balancer pool
-    @param _tokensToTrade The total amount given for investment
-    @param _ToBalancerPoolAddress The address of balancer pool to zap in
-    @param _fromTokenContractAddress The Token address which will be used to zap in
-    @return The amount of balancer pool tokens received after zap in
+    @notice This function is used to swap tokens
+    @param _FromTokenContractAddress The token address to swap from
+    @param _ToTokenContractAddress The token address to swap to
+    @param tokens2Trade The amount of tokens to swap
+    @return The quantity of tokens bought
      */
-    function _enter2Balancer(
-        uint256 _tokensToTrade,
-        address _ToBalancerPoolAddress,
-        address _fromTokenContractAddress
-    ) internal returns (uint256 poolAmountOut) {
-        uint256 allowance = IERC20(_fromTokenContractAddress).allowance(
-            address(this),
-            _ToBalancerPoolAddress
-        );
-
-        if (allowance < _tokensToTrade) {
-            IERC20(_fromTokenContractAddress).approve(
-                _ToBalancerPoolAddress,
-                uint256(-1)
-            );
-        }
-
-        poolAmountOut = IBPool_ETH_Balancer_General_Zap_V1(
-            _ToBalancerPoolAddress
-        )
-            .joinswapExternAmountIn(
-            _fromTokenContractAddress,
-            _tokensToTrade,
-            1
-        );
-
-        require(poolAmountOut > 0, "Error in entering balancer pool");
-    }
-
-    /**
-    @notice This function calculate and transfer goodwill to the goodwill address
-    @param _tokenContractAddress Token address in which goodwill is deducted
-    @param tokens2Trade The total amount given for investment
-    @return The amount of goodwill
-     */
-    function _transferGoodwill(
-        address _tokenContractAddress,
+    function _token2Token(
+        address _FromTokenContractAddress,
+        address _ToTokenContractAddress,
         uint256 tokens2Trade
-    ) internal returns (uint256 goodwillPortion) {
-        goodwillPortion = SafeMath.div(
-            SafeMath.mul(tokens2Trade, goodwill),
-            10000
+    ) internal returns (uint256 tokenBought) {
+
+        Iuniswap_ERC20_Balancer_General_V1_1 FromUniSwapExchangeContractAddress
+        = Iuniswap_ERC20_Balancer_General_V1_1(
+            UniSwapFactoryAddress.getExchange(_FromTokenContractAddress)
         );
 
-        if (goodwillPortion == 0) {
-            return 0;
-        }
-
-        require(
-            IERC20(_tokenContractAddress).transfer(
-                dzgoodwillAddress,
-                goodwillPortion
-            ),
-            "Error 1 in transferring balancer tokens"
+        IERC20(_FromTokenContractAddress).approve(
+            address(FromUniSwapExchangeContractAddress),
+            tokens2Trade
         );
+
+        tokenBought = FromUniSwapExchangeContractAddress.tokenToTokenSwapInput(
+            tokens2Trade,
+            1,
+            1,
+            SafeMath.add(now, 1800),
+            _ToTokenContractAddress
+        );
+        require(tokenBought > 0, "Error in swapping ERC: 1");
     }
 
     function inCaseTokengetsStuck(IERC20 _TokenAddress) public onlyOwner {
