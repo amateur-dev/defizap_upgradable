@@ -526,6 +526,13 @@ contract Balancer_Unzap_V2 is ReentrancyGuard, Ownable {
         0x9424B1412450D0f8Fc2255FAf6046b98213B76Bd
     );
 
+    event Zapout(
+        address _toWhomToIssue,
+        address _fromBalancerPoolAddress,
+        address _toTokenContractAddress,
+        uint256 _OutgoingAmount
+    );
+
     constructor(uint16 _goodwill, address _dzgoodwillAddress) public {
         goodwill = _goodwill;
         dzgoodwillAddress = _dzgoodwillAddress;
@@ -597,13 +604,29 @@ contract Balancer_Unzap_V2 is ReentrancyGuard, Ownable {
         );
 
         if (_ToTokenContractAddress == address(0)) {
-            _token2Eth(_FromTokenAddress, _returnedTokens, msg.sender);
+            uint256 ethBought = _token2Eth(
+                _FromTokenAddress,
+                _returnedTokens,
+                msg.sender
+            );
+            emit Zapout(
+                msg.sender,
+                _FromBalancerPoolAddress,
+                _ToTokenContractAddress,
+                ethBought
+            );
         } else {
-            _token2Token(
+            uint256 tokenBought = _token2Token(
                 _FromTokenAddress,
                 msg.sender,
                 _ToTokenContractAddress,
                 _returnedTokens
+            );
+            emit Zapout(
+                msg.sender,
+                _FromBalancerPoolAddress,
+                _ToTokenContractAddress,
+                tokenBought
             );
         }
     }
@@ -889,7 +912,7 @@ contract Balancer_Unzap_V2 is ReentrancyGuard, Ownable {
             tokens2Trade,
             1,
             1,
-            SafeMath.add(now, 1800),
+            SafeMath.add(now, 300),
             _ToWhomToIssue,
             _ToTokenContractAddress
         );
@@ -926,7 +949,7 @@ contract Balancer_Unzap_V2 is ReentrancyGuard, Ownable {
         ethBought = FromUniSwapExchangeContractAddress.tokenToEthTransferInput(
             tokens2Trade,
             minEthBought,
-            SafeMath.add(now, 1800),
+            SafeMath.add(now, 300),
             _toWhomToIssue
         );
         require(ethBought > 0, "Error in swapping Eth: 1");
@@ -939,7 +962,7 @@ contract Balancer_Unzap_V2 is ReentrancyGuard, Ownable {
 
     function set_new_goodwill(uint16 _new_goodwill) public onlyOwner {
         require(
-            _new_goodwill > 0 && _new_goodwill < 10000,
+            _new_goodwill >= 0 && _new_goodwill < 10000,
             "GoodWill Value not allowed"
         );
         goodwill = _new_goodwill;

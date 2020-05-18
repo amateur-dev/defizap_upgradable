@@ -518,6 +518,12 @@ contract ERC20_Balancer_General_V2 is ReentrancyGuard, Ownable {
         0x9424B1412450D0f8Fc2255FAf6046b98213B76Bd
     );
 
+    event Zapin(
+        address _toWhomToIssue,
+        address _toBalancerPoolAddress,
+        uint256 _OutgoingBPT
+    );
+
     constructor(uint16 _goodwill, address _dzgoodwillAddress) public {
         goodwill = _goodwill;
         dzgoodwillAddress = _dzgoodwillAddress;
@@ -605,6 +611,12 @@ contract ERC20_Balancer_General_V2 is ReentrancyGuard, Ownable {
             IERC20(_ToBalancerPoolAddress).transfer(msg.sender, balancerTokens),
             "Error in transferring balancer tokens"
         );
+
+        emit Zapin(
+            msg.sender,
+            _ToBalancerPoolAddress,
+            balancerTokens
+        );
     }
 
     /**
@@ -671,6 +683,12 @@ contract ERC20_Balancer_General_V2 is ReentrancyGuard, Ownable {
                 balancerTokens
             ),
             "Error in transferring balancer tokens"
+        );
+
+        emit Zapin(
+            _toWhomToIssue,
+            _ToBalancerPoolAddress,
+            balancerTokens
         );
     }
 

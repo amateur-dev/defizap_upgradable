@@ -550,6 +550,12 @@ contract Balancer_ZapIn_General_V1 is ReentrancyGuard, Ownable {
         0x9424B1412450D0f8Fc2255FAf6046b98213B76Bd
     );
 
+    event Zapin(
+        address _toWhomToIssue,
+        address _toBalancerPoolAddress,
+        uint256 _OutgoingBPT
+    );
+
     constructor(uint16 _goodwill, address _dzgoodwillAddress) public {
         goodwill = _goodwill;
         dzgoodwillAddress = _dzgoodwillAddress;
@@ -602,12 +608,6 @@ contract Balancer_ZapIn_General_V1 is ReentrancyGuard, Ownable {
         } else {
             require(_amount > 0, "ERR: No ERC sent");
 
-            address _ToTokenContractAddress = _getBestDeal(
-                _ToBalancerPoolAddress,
-                _amount,
-                _FromTokenContractAddress
-            );
-
             //transfer tokens to contract
             require(
                 IERC20(_FromTokenContractAddress).transferFrom(
@@ -616,6 +616,12 @@ contract Balancer_ZapIn_General_V1 is ReentrancyGuard, Ownable {
                     _amount
                 ),
                 "Error in transferring ERC: 1"
+            );
+
+            address _ToTokenContractAddress = _getBestDeal(
+                _ToBalancerPoolAddress,
+                _amount,
+                _FromTokenContractAddress
             );
 
             return (
@@ -736,6 +742,12 @@ contract Balancer_ZapIn_General_V1 is ReentrancyGuard, Ownable {
         uint256 goodwillPortion = _transferGoodwill(
             _ToBalancerPoolAddress,
             balancerTokens
+        );
+
+        emit Zapin(
+            _toWhomToIssue,
+            _ToBalancerPoolAddress,
+            SafeMath.sub(balancerTokens, goodwillPortion)
         );
 
         //transfer tokens to user
@@ -860,8 +872,7 @@ contract Balancer_ZapIn_General_V1 is ReentrancyGuard, Ownable {
             // check if isBound()
             bool isBound = IBPool_Balancer_ZapIn_General_V1(
                 _ToBalancerPoolAddress
-            )
-                .isBound(_FromTokenContractAddress);
+            ).isBound(_FromTokenContractAddress);
 
             if (isBound) return _FromTokenContractAddress;
 

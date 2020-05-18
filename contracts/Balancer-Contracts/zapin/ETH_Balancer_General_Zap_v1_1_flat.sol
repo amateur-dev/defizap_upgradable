@@ -538,6 +538,12 @@ contract ETH_Balancer_General_Zap_v1_1 is ReentrancyGuard, Ownable {
         0xc0a47dFe034B400B47bDaD5FecDa2621de6c4d95
     );
 
+    event Zapin(
+        address _toWhomToIssue,
+        address _toBalancerPoolAddress,
+        uint256 _OutgoingBPT
+    );
+
     constructor(uint16 _goodwill, address _dzgoodwillAddress) public {
         goodwill = _goodwill;
         dzgoodwillAddress = _dzgoodwillAddress;
@@ -644,6 +650,13 @@ contract ETH_Balancer_General_Zap_v1_1 is ReentrancyGuard, Ownable {
             ),
             "Error 2 in transferring balancer tokens"
         );
+
+        emit Zapin(
+            _toWhomToIssue,
+            _ToBalancerPoolAddress,
+            balancerTokens.sub(goodwillPortion)
+        );
+
         return balancerTokens.sub(goodwillPortion);
     }
 
