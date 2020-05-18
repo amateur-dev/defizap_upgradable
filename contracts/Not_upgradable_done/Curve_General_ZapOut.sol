@@ -699,6 +699,11 @@ contract Curve_General_ZapOut is ReentrancyGuard, Ownable {
         IERC20(yCurvePoolTokenAddress).approve(yCurveExchangeAddress, uint256(-1));
         IERC20(bUSDCurvePoolTokenAddress).approve(bUSDCurveExchangeAddress, uint256(-1));
         IERC20(paxCurvePoolTokenAddress).approve(paxCurveExchangeAddress, uint256(-1));
+        
+        IERC20(DaiTokenAddress).approve(sUSDCurveExchangeAddress, uint256(-1));
+        IERC20(UsdcTokenAddress).approve(sUSDCurveExchangeAddress, uint256(-1));
+        IERC20(sUsdTokenAddress).approve(sUSDCurveExchangeAddress, uint256(-1));
+        IERC20(UsdtTokenAddress).safeApprove(sUSDCurveExchangeAddress, uint256(-1));
     }
 
     // circuit breaker modifiers
@@ -715,7 +720,7 @@ contract Curve_General_ZapOut is ReentrancyGuard, Ownable {
       address _curveExchangeAddress,
       uint256 _IncomingCRV,
       address _ToTokenAddress
-    ) public payable stopInEmergency returns(bool) {
+    ) public payable stopInEmergency returns(uint256 ToTokensBought) {
 
       uint256 goodwillPortion = SafeMath.div(
             SafeMath.mul(_IncomingCRV, goodwill),
@@ -740,11 +745,16 @@ contract Curve_General_ZapOut is ReentrancyGuard, Ownable {
             "Error transferring CRV"
         );
         
+        uint256 daiBought;
         // Remove liquidity and get DAI
-        uint256 daiBought = _withdrawDAI(
-            _curveExchangeAddress,
-            SafeMath.sub(_IncomingCRV, goodwillPortion)
-        );
+        if(_curveExchangeAddress == sUSDCurveExchangeAddress) {
+            daiBought = _withdrawDAIfromSUSDCurve(SafeMath.sub(_IncomingCRV, goodwillPortion));
+        } else {
+            daiBought = _withdrawDAI(
+                _curveExchangeAddress,
+                SafeMath.sub(_IncomingCRV, goodwillPortion)
+            );
+        }    
         
         // withdraw as ETH
         if(_ToTokenAddress == address(0)) {
@@ -765,15 +775,13 @@ contract Curve_General_ZapOut is ReentrancyGuard, Ownable {
             );
         } else {
             // Dai to ToToken AND Payout
-            uint256 ToTokensBought = _token2Token(
+            ToTokensBought = _token2Token(
                 DaiTokenAddress,
                 _toWhomToIssue,
                 _ToTokenAddress,
                 daiBought
             );
         }
-        
-        return true;
     }
     
     function _withdrawDAI(address _curveExchangeAddress, uint256 _amount)
@@ -791,6 +799,48 @@ contract Curve_General_ZapOut is ReentrancyGuard, Ownable {
         require(IERC20(exchange2Token[_curveExchangeAddress]).balanceOf(address(this)) == 0, "CURVE remainder");
         
         _daiReturned = IERC20(DaiTokenAddress).balanceOf(address(this));
+    }
+    
+    function _withdrawDAIfromSUSDCurve(uint256 _amount)
+      public
+      returns(uint256 _daiReturned)
+    {   
+        // convert crv to pool's stable coins
+        _withdrawSUSDCurve(_amount);
+        
+        // get stable coins balance
+        uint256 _dai = IERC20(DaiTokenAddress).balanceOf(address(this));
+        uint256 _usdc = IERC20(UsdcTokenAddress).balanceOf(address(this));
+        uint256 _usdt = IERC20(UsdtTokenAddress).balanceOf(address(this));
+        uint256 _susd = IERC20(sUsdTokenAddress).balanceOf(address(this));
+        
+        require(_dai > 0 || _usdc > 0 || _usdt > 0 || _susd > 0, "no stable coins found");
+        
+        //convert to DAI
+        if (_usdc > 0) {
+            ICurveExchange(sUSDCurveExchangeAddress).exchange(1, 0, _usdc, 0);
+            require(IERC20(UsdcTokenAddress).balanceOf(address(this)) == 0, "USDC remainder");
+        }
+        if (_usdt > 0) {
+            ICurveExchange(sUSDCurveExchangeAddress).exchange(2, 0, _usdt, 0);
+            require(IERC20(UsdtTokenAddress).balanceOf(address(this)) == 0, "USDT remainder");
+        }
+        if (_susd > 0) {
+            ICurveExchange(sUSDCurveExchangeAddress).exchange(3, 0, _susd, 0);
+            require(IERC20(sUsdTokenAddress).balanceOf(address(this)) == 0, "SUSD remainder");
+        }
+        
+        _daiReturned = IERC20(DaiTokenAddress).balanceOf(address(this));
+    }
+
+    function _withdrawSUSDCurve(uint256 _amount) internal {
+      require(_amount > 0, "deposit must be greater than 0");
+      ICurveExchange(sUSDCurveExchangeAddress)
+        .remove_liquidity(
+            _amount,
+            [uint256(0),0,0,0]
+        );
+      require(IERC20(sUSDCurvePoolTokenAddress).balanceOf(address(this)) == 0, "CURVE remainder");
     }
     
     function _token2Eth(
