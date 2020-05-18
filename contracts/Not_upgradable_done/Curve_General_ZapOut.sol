@@ -705,6 +705,13 @@ contract Curve_General_ZapOut is ReentrancyGuard, Ownable {
         IERC20(sUsdTokenAddress).approve(sUSDCurveExchangeAddress, uint256(-1));
         IERC20(UsdtTokenAddress).safeApprove(sUSDCurveExchangeAddress, uint256(-1));
     }
+    
+    function set_new_sUSDTokenAddress(address _new_sUSDTokenAddress)
+        public
+        onlyOwner
+    {
+        sUsdTokenAddress = _new_sUSDTokenAddress;
+    }
 
     // circuit breaker modifiers
     modifier stopInEmergency {
@@ -720,7 +727,7 @@ contract Curve_General_ZapOut is ReentrancyGuard, Ownable {
       address _curveExchangeAddress,
       uint256 _IncomingCRV,
       address _ToTokenAddress
-    ) public payable stopInEmergency returns(uint256 ToTokensBought) {
+    ) public stopInEmergency returns(uint256 ToTokensBought) {
 
       uint256 goodwillPortion = SafeMath.div(
             SafeMath.mul(_IncomingCRV, goodwill),
@@ -786,7 +793,6 @@ contract Curve_General_ZapOut is ReentrancyGuard, Ownable {
     
     function _withdrawDAI(address _curveExchangeAddress, uint256 _amount)
       internal
-      nonReentrant
       returns(uint256 _daiReturned)
     {   
         ICurveExchange(_curveExchangeAddress)
@@ -796,13 +802,12 @@ contract Curve_General_ZapOut is ReentrancyGuard, Ownable {
             0,
             false
         );
-        require(IERC20(exchange2Token[_curveExchangeAddress]).balanceOf(address(this)) == 0, "CURVE remainder");
-        
+
         _daiReturned = IERC20(DaiTokenAddress).balanceOf(address(this));
     }
     
     function _withdrawDAIfromSUSDCurve(uint256 _amount)
-      public
+      internal
       returns(uint256 _daiReturned)
     {   
         // convert crv to pool's stable coins
@@ -840,7 +845,6 @@ contract Curve_General_ZapOut is ReentrancyGuard, Ownable {
             _amount,
             [uint256(0),0,0,0]
         );
-      require(IERC20(sUSDCurvePoolTokenAddress).balanceOf(address(this)) == 0, "CURVE remainder");
     }
     
     function _token2Eth(
