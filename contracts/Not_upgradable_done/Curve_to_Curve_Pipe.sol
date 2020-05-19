@@ -338,6 +338,7 @@ interface ICurveGenZapIn {
 
 contract Curve_to_Curve_Pipe is ReentrancyGuard, Ownable {
     using SafeMath for uint256;
+    using Address for address;
     bool private stopped = false;
     uint16 public goodwill;
     address public dzgoodwillAddress;
@@ -438,8 +439,7 @@ contract Curve_to_Curve_Pipe is ReentrancyGuard, Ownable {
         );
 
         curveGenZapOut.ZapOut(
-          // to enter as address payable
-            address(uint160(address(this))),
+            address(this).toPayable(),
             _incomingCurveExchange,
             SafeMath.sub(_IncomingCRV, goodwillPortion),
             DaiTokenAddress
