@@ -1,5 +1,6 @@
 pragma solidity ^0.5.0;
 
+
 // Copyright (C) 2019, 2020 dipeshsukhani, nodarjanashia, suhailg, apoorvlathey, seb, sumit
 
 // This program is free software: you can redistribute it and/or modify
@@ -43,6 +44,7 @@ interface IERC20 {
     );
 }
 
+
 library SafeMath {
     function add(uint256 a, uint256 b) internal pure returns (uint256) {
         uint256 c = a + b;
@@ -50,9 +52,11 @@ library SafeMath {
 
         return c;
     }
+
     function sub(uint256 a, uint256 b) internal pure returns (uint256) {
         return sub(a, b, "SafeMath: subtraction overflow");
     }
+
     function sub(uint256 a, uint256 b, string memory errorMessage)
         internal
         pure
@@ -63,6 +67,7 @@ library SafeMath {
 
         return c;
     }
+
     function mul(uint256 a, uint256 b) internal pure returns (uint256) {
         if (a == 0) {
             return 0;
@@ -73,9 +78,11 @@ library SafeMath {
 
         return c;
     }
+
     function div(uint256 a, uint256 b) internal pure returns (uint256) {
         return div(a, b, "SafeMath: division by zero");
     }
+
     function div(uint256 a, uint256 b, string memory errorMessage)
         internal
         pure
@@ -85,9 +92,11 @@ library SafeMath {
         uint256 c = a / b;
         return c;
     }
+
     function mod(uint256 a, uint256 b) internal pure returns (uint256) {
         return mod(a, b, "SafeMath: modulo by zero");
     }
+
     function mod(uint256 a, uint256 b, string memory errorMessage)
         internal
         pure
@@ -97,6 +106,7 @@ library SafeMath {
         return a % b;
     }
 }
+
 
 /**
  * @dev Contract module that helps prevent reentrant calls to a function.
@@ -116,7 +126,7 @@ library SafeMath {
 contract ReentrancyGuard {
     bool private _notEntered;
 
-    constructor () internal {
+    constructor() internal {
         // Storing an initial non-zero value makes deployment a bit more
         // expensive, but in exchange the refund on every call to nonReentrant
         // will be lower in amount. Since refunds are capped to a percetange of
@@ -148,6 +158,7 @@ contract ReentrancyGuard {
     }
 }
 
+
 /*
  * @dev Provides information about the current execution context, including the
  * sender of the transaction and its data. While these are generally available
@@ -161,7 +172,8 @@ contract ReentrancyGuard {
 contract Context {
     // Empty internal constructor, to prevent people from mistakenly deploying
     // an instance of this contract, which should be used via inheritance.
-    constructor () internal { }
+    constructor() internal {}
+
     // solhint-disable-previous-line no-empty-blocks
 
     function _msgSender() internal view returns (address payable) {
@@ -173,6 +185,7 @@ contract Context {
         return msg.data;
     }
 }
+
 
 /**
  * @dev Contract module which provides a basic access control mechanism, where
@@ -186,12 +199,15 @@ contract Context {
 contract Ownable is Context {
     address payable public _owner;
 
-    event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
+    event OwnershipTransferred(
+        address indexed previousOwner,
+        address indexed newOwner
+    );
 
     /**
      * @dev Initializes the contract setting the deployer as the initial owner.
      */
-    constructor () internal {
+    constructor() internal {
         address payable msgSender = _msgSender();
         _owner = msgSender;
         emit OwnershipTransferred(address(0), msgSender);
@@ -243,11 +259,15 @@ contract Ownable is Context {
      * @dev Transfers ownership of the contract to a new account (`newOwner`).
      */
     function _transferOwnership(address payable newOwner) internal {
-        require(newOwner != address(0), "Ownable: new owner is the zero address");
+        require(
+            newOwner != address(0),
+            "Ownable: new owner is the zero address"
+        );
         emit OwnershipTransferred(_owner, newOwner);
         _owner = newOwner;
     }
 }
+
 
 /**
  * @dev Collection of functions related to the address type
@@ -261,7 +281,7 @@ library Address {
      * It is unsafe to assume that an address for which this function returns
      * false is an externally-owned account (EOA) and not a contract.
      *
-     * Among others, `isContract` will return false for the following 
+     * Among others, `isContract` will return false for the following
      * types of addresses:
      *
      *  - an externally-owned account
@@ -275,9 +295,13 @@ library Address {
         // and 0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470 is returned
         // for accounts without code, i.e. `keccak256('')`
         bytes32 codehash;
-        bytes32 accountHash = 0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470;
+
+            bytes32 accountHash
+         = 0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470;
         // solhint-disable-next-line no-inline-assembly
-        assembly { codehash := extcodehash(account) }
+        assembly {
+            codehash := extcodehash(account)
+        }
         return (codehash != accountHash && codehash != 0x0);
     }
 
@@ -287,7 +311,11 @@ library Address {
      *
      * _Available since v2.4.0._
      */
-    function toPayable(address account) internal pure returns (address payable) {
+    function toPayable(address account)
+        internal
+        pure
+        returns (address payable)
+    {
         return address(uint160(account));
     }
 
@@ -310,22 +338,30 @@ library Address {
      * _Available since v2.4.0._
      */
     function sendValue(address payable recipient, uint256 amount) internal {
-        require(address(this).balance >= amount, "Address: insufficient balance");
+        require(
+            address(this).balance >= amount,
+            "Address: insufficient balance"
+        );
 
         // solhint-disable-next-line avoid-call-value
         (bool success, ) = recipient.call.value(amount)("");
-        require(success, "Address: unable to send value, recipient may have reverted");
+        require(
+            success,
+            "Address: unable to send value, recipient may have reverted"
+        );
     }
 }
 
+
 interface ICurveGenZapOut {
     function ZapOut(
-      address payable _toWhomToIssue,
-      address _curveExchangeAddress,
-      uint256 _IncomingCRV,
-      address _ToTokenAddress
-    ) external returns(uint256 ToTokensBought);
+        address payable _toWhomToIssue,
+        address _curveExchangeAddress,
+        uint256 _IncomingCRV,
+        address _ToTokenAddress
+    ) external returns (uint256 ToTokensBought);
 }
+
 
 interface ICurveGenZapIn {
     function ZapIn(
@@ -336,16 +372,15 @@ interface ICurveGenZapIn {
     ) external payable returns (uint256 crvTokensBought);
 }
 
+
 contract Curve_to_Curve_Pipe is ReentrancyGuard, Ownable {
     using SafeMath for uint256;
     using Address for address;
     bool private stopped = false;
-    uint16 public goodwill;
-    address public dzgoodwillAddress;
 
     ICurveGenZapIn public curveGenZapIn;
     ICurveGenZapOut public curveGenZapOut;
-    
+
     address public DaiTokenAddress = address(
         0x6B175474E89094C44Da98b954EedeAC495271d0F
     );
@@ -373,15 +408,15 @@ contract Curve_to_Curve_Pipe is ReentrancyGuard, Ownable {
     address public paxCurvePoolTokenAddress = address(
         0xD905e2eaeBe188fc92179b6350807D8bd91Db0D8
     );
-    
+
     mapping(address => address) internal exchange2Token;
 
-    constructor(uint16 _goodwill, address _dzgoodwillAddress, address _genCurveZapInAddress, address _curveZapOutAddress) public {
-        goodwill = _goodwill;
-        dzgoodwillAddress = _dzgoodwillAddress;
+    constructor(address _genCurveZapInAddress, address _curveZapOutAddress)
+        public
+    {
         curveGenZapIn = ICurveGenZapIn(_genCurveZapInAddress);
         curveGenZapOut = ICurveGenZapOut(_curveZapOutAddress);
-        
+
         exchange2Token[sUSDCurveExchangeAddress] = sUSDCurvePoolTokenAddress;
         exchange2Token[yCurveExchangeAddress] = yCurvePoolTokenAddress;
         exchange2Token[bUSDCurveExchangeAddress] = bUSDCurvePoolTokenAddress;
@@ -389,16 +424,28 @@ contract Curve_to_Curve_Pipe is ReentrancyGuard, Ownable {
 
         approveToken();
     }
-    
+
     function approveToken() public {
-        IERC20(sUSDCurvePoolTokenAddress).approve(address(curveGenZapOut), uint256(-1));
-        IERC20(yCurvePoolTokenAddress).approve(address(curveGenZapOut), uint256(-1));
-        IERC20(bUSDCurvePoolTokenAddress).approve(address(curveGenZapOut), uint256(-1));
-        IERC20(paxCurvePoolTokenAddress).approve(address(curveGenZapOut), uint256(-1));
-        
+        IERC20(sUSDCurvePoolTokenAddress).approve(
+            address(curveGenZapOut),
+            uint256(-1)
+        );
+        IERC20(yCurvePoolTokenAddress).approve(
+            address(curveGenZapOut),
+            uint256(-1)
+        );
+        IERC20(bUSDCurvePoolTokenAddress).approve(
+            address(curveGenZapOut),
+            uint256(-1)
+        );
+        IERC20(paxCurvePoolTokenAddress).approve(
+            address(curveGenZapOut),
+            uint256(-1)
+        );
+
         IERC20(DaiTokenAddress).approve(address(curveGenZapIn), uint256(-1));
     }
-    
+
     // circuit breaker modifiers
     modifier stopInEmergency {
         if (stopped) {
@@ -408,32 +455,17 @@ contract Curve_to_Curve_Pipe is ReentrancyGuard, Ownable {
         }
     }
 
-    function Curve2Curve (
+    function Curve2Curve(
         address payable _toWhomToIssue,
         address _incomingCurveExchange,
         uint256 _IncomingCRV,
         address _toCurveExchange
     ) public stopInEmergency {
-        
-        uint256 goodwillPortion = SafeMath.div(
-            SafeMath.mul(_IncomingCRV, goodwill),
-            10000
-        );
-
-        require(
-            IERC20(exchange2Token[_incomingCurveExchange]).transferFrom(
-              msg.sender,
-              dzgoodwillAddress,
-              goodwillPortion
-            ),
-            "Error transferring goodwill"
-        );
-
         require(
             IERC20(exchange2Token[_incomingCurveExchange]).transferFrom(
                 msg.sender,
                 address(this),
-                SafeMath.sub(_IncomingCRV, goodwillPortion)
+                _IncomingCRV
             ),
             "Error transferring CRV"
         );
@@ -441,10 +473,10 @@ contract Curve_to_Curve_Pipe is ReentrancyGuard, Ownable {
         curveGenZapOut.ZapOut(
             address(this).toPayable(),
             _incomingCurveExchange,
-            SafeMath.sub(_IncomingCRV, goodwillPortion),
+            _IncomingCRV,
             DaiTokenAddress
         );
-        
+
         uint256 daiBought = IERC20(DaiTokenAddress).balanceOf(address(this));
 
         curveGenZapIn.ZapIn(
@@ -458,21 +490,6 @@ contract Curve_to_Curve_Pipe is ReentrancyGuard, Ownable {
     function inCaseTokengetsStuck(IERC20 _TokenAddress) public onlyOwner {
         uint256 qty = _TokenAddress.balanceOf(address(this));
         _TokenAddress.transfer(_owner, qty);
-    }
-
-    function set_new_goodwill(uint16 _new_goodwill) public onlyOwner {
-        require(
-            _new_goodwill > 0 && _new_goodwill < 10000,
-            "GoodWill Value not allowed"
-        );
-        goodwill = _new_goodwill;
-    }
-
-    function set_new_dzgoodwillAddress(address _new_dzgoodwillAddress)
-        public
-        onlyOwner
-    {
-        dzgoodwillAddress = _new_dzgoodwillAddress;
     }
 
     // - to Pause the contract
