@@ -763,23 +763,22 @@ contract Curve_General_ZapOut is ReentrancyGuard, Ownable {
             );
         }    
         
-        // withdraw as ETH
+        // withdraw and Payout ETH
         if(_ToTokenAddress == address(0)) {
             // Dai to ETH
             uint256 ethBought = _token2Eth(
                 DaiTokenAddress,
                 daiBought,
-                address(this)
+                _toWhomToIssue
             );
-            
-            // Payout ETH
-            _toWhomToIssue.transfer(ethBought);
+            ToTokensBought = ethBought;
             
         } else if(_ToTokenAddress == DaiTokenAddress) {
             IERC20(DaiTokenAddress).transfer(
                 _toWhomToIssue,
                 daiBought
             );
+            ToTokensBought = daiBought;
         } else {
             // Dai to ToToken AND Payout
             ToTokensBought = _token2Token(
@@ -811,7 +810,11 @@ contract Curve_General_ZapOut is ReentrancyGuard, Ownable {
       returns(uint256 _daiReturned)
     {   
         // convert crv to pool's stable coins
-        _withdrawSUSDCurve(_amount);
+        ICurveExchange(sUSDCurveExchangeAddress)
+        .remove_liquidity(
+            _amount,
+            [uint256(0),0,0,0]
+        );
         
         // get stable coins balance
         uint256 _dai = IERC20(DaiTokenAddress).balanceOf(address(this));
@@ -836,15 +839,6 @@ contract Curve_General_ZapOut is ReentrancyGuard, Ownable {
         }
         
         _daiReturned = IERC20(DaiTokenAddress).balanceOf(address(this));
-    }
-
-    function _withdrawSUSDCurve(uint256 _amount) internal {
-      require(_amount > 0, "deposit must be greater than 0");
-      ICurveExchange(sUSDCurveExchangeAddress)
-        .remove_liquidity(
-            _amount,
-            [uint256(0),0,0,0]
-        );
     }
     
     function _token2Eth(
